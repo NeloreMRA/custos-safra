@@ -6,6 +6,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
   :root{
     --bg:#faf8f3; --panel:#ffffff; --ink:#2b2b23; --ink-soft:#6b6b5c; --line:#e4e0d4;
@@ -90,20 +91,52 @@
     tr{page-break-inside:avoid;}
     body{background:#fff;}
   }
+
+  /* LOGIN FIREBASE */
+  body.auth-pending aside, body.auth-pending main,
+  body.auth-logged-out aside, body.auth-logged-out main{display:none!important;}
+  #loginScreen{display:none; min-height:100vh; width:100%; place-items:center; padding:20px; background:var(--bg);}
+  body.auth-pending #loginScreen, body.auth-logged-out #loginScreen{display:grid;}
+  body.authenticated #loginScreen{display:none;}
+  .login-card{width:min(390px,100%); background:#fff; border:1px solid var(--line); border-radius:12px; padding:26px; box-shadow:0 10px 30px rgba(0,0,0,.08);}
+  .login-card h2{margin:0 0 5px; font-size:22px;}
+  .login-card>p{margin:0 0 20px; color:var(--ink-soft); font-size:13px;}
+  .login-field{margin-bottom:12px;}
+  .login-field label{font-size:12px; font-weight:600;}
+  .login-field input{padding:10px 11px; background:#fff;}
+  .login-submit{width:100%; border:0; border-radius:6px; padding:10px 14px; background:var(--green); color:#fff; cursor:pointer; font-weight:700;}
+  .login-submit:disabled{opacity:.65; cursor:wait;}
+  .login-error{min-height:18px; margin-top:10px; text-align:center; color:var(--alert); font-size:12px;}
+  .side-tool{width:100%; margin-bottom:7px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); color:#f2efe4; padding:7px 10px; border-radius:6px; cursor:pointer; text-align:left; font-size:12px;}
+  .side-tool:hover{background:rgba(255,255,255,.12);}
+  .side-tool:disabled{opacity:.45; cursor:not-allowed;}
+  .logout-btn{margin-top:auto;}
 </style>
 </head>
-<body>
+<body class="auth-pending">
+<div id="loginScreen">
+  <form id="loginForm" class="login-card" autocomplete="on">
+    <h2>🌱 Custos Safra</h2>
+    <p>Fazenda Paraíso · Entre com seu usuário do Firebase.</p>
+    <div class="login-field"><label for="loginEmail">E-mail</label><input id="loginEmail" type="email" autocomplete="username" required></div>
+    <div class="login-field"><label for="loginPassword">Senha</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+    <button id="loginButton" class="login-submit" type="submit">Entrar</button>
+    <div id="loginError" class="login-error" aria-live="polite"></div>
+  </form>
+</div>
 <aside class="no-print">
   <h1>🌱 Custos Safra</h1>
   <p class="sub">Fazenda Paraíso</p>
   <div id="sync-status" class="sync-status local">⚪ Modo local</div>
   <select class="safra-select" id="safra-selector"></select>
+  <button id="undoBtn" class="side-tool" type="button" onclick="undoLastChange()" disabled>↶ Desfazer (Ctrl+Z)</button>
   <button class="navbtn active" data-page="dashboard">📊 Dashboard</button>
   <button class="navbtn" data-page="colheita">🚜 Colheita</button>
   <button class="navbtn" data-page="adiantamentos">💰 Adiantamentos</button>
   <button class="navbtn" data-page="vendas">📦 Silos e Vendas</button>
   <button class="navbtn" data-page="cadastros">⚙️ Cadastros</button>
   <button class="navbtn" data-page="safras">🌾 Cadastro de Safra</button>
+  <button id="logoutBtn" class="side-tool logout-btn" type="button">Sair</button>
 </aside>
 <main id="main"></main>
 
@@ -167,19 +200,68 @@ const ADIANTAMENTO_MILHO = [
 {"data":"2026-07-23","motorista":"AGENOR","servico":"Solda","valor":400}
 ];
 const TALHOES_MILHO = [
-  {talhao:"TALHÃO 16", area:72, variedade:"", plantado:false},
-  {talhao:"TALHÃO 18", area:18, variedade:"", plantado:false},
-  {talhao:"TALHÃO 19", area:21.31, variedade:"", plantado:false},
-  {talhao:"LIXÃO", area:28.26, variedade:"", plantado:false},
-  {talhao:"TALHÃO 21", area:33.89, variedade:"", plantado:false},
-  {talhao:"ARUANA", area:82.58, variedade:"", plantado:false},
-  {talhao:"PALHADA", area:104.78, variedade:"BREVANT 2702", plantado:true},
-  {talhao:"BASE III", area:51, variedade:"NK 165", plantado:true},
-  {talhao:"CACHOEIRA", area:30.7, variedade:"", plantado:false},
-  {talhao:"PISTA", area:0, variedade:"", plantado:false},
+  {talhao:"TALHÃO 16", area:72, variedade:"", variedade2:"", plantado:false},
+  {talhao:"TALHÃO 18", area:18, variedade:"", variedade2:"", plantado:false},
+  {talhao:"TALHÃO 19", area:21.31, variedade:"", variedade2:"", plantado:false},
+  {talhao:"LIXÃO", area:28.26, variedade:"", variedade2:"", plantado:false},
+  {talhao:"TALHÃO 21", area:33.89, variedade:"", variedade2:"", plantado:false},
+  {talhao:"ARUANA", area:82.58, variedade:"", variedade2:"", plantado:false},
+  {talhao:"PALHADA", area:104.78, variedade:"BREVANT 2702", variedade2:"", plantado:true},
+  {talhao:"BASE III", area:51, variedade:"NK 165", variedade2:"", plantado:true},
+  {talhao:"CACHOEIRA", area:30.7, variedade:"", variedade2:"", plantado:false},
+  {talhao:"PISTA", area:0, variedade:"", variedade2:"", plantado:false},
 ];
 const LOCAIS_MILHO = ["ADM DO BRASIL - CGR","COAMO - SIDROLANDIA","CARGIL - CGR","SILO VIZINHO","LAR"];
 const MOTORISTAS_MILHO = ["ALEXSANDRO","AGENOR"];
+
+// =================== DADOS INICIAIS SOJA 2025/2026 ===================
+// Importados das abas COLHEITA, SILOS E VENDAS e RESUMOS da planilha enviada.
+const COLHEITA_SOJA = [{"data":"2026-02-26","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"WELLINGSON","pesoBruto":38840.0,"umidade":0.17,"impureza":0.003,"saldoLiquido":36820.0,"vlSaca":3.0},{"data":"2026-02-27","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"AGENOR","pesoBruto":47640.0,"umidade":0.148,"impureza":0.002,"saldoLiquido":46792.0,"vlSaca":3.0},{"data":"2026-02-27","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"WELLINGSON","pesoBruto":39700.0,"umidade":0.131,"impureza":0.004,"saldoLiquido":39700.0,"vlSaca":3.0},{"data":"2026-02-28","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"AGENOR","pesoBruto":47080.0,"umidade":0.133,"impureza":0.008,"saldoLiquido":47080.0,"vlSaca":3.0},{"data":"2026-02-28","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"AGENOR","pesoBruto":29660.0,"umidade":0.113,"impureza":0.002,"saldoLiquido":29660.0,"vlSaca":3.0},{"data":"2026-03-01","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"ALEXSANDRO","pesoBruto":39340.0,"umidade":0.104,"impureza":0.009,"saldoLiquido":39340.0,"vlSaca":3.0},{"data":"2026-03-01","talhao":"PALHADA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":56810.0,"umidade":0.106,"impureza":0.005,"saldoLiquido":56526.0,"vlSaca":3.6},{"data":"2026-03-01","talhao":"PALHADA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38930.0,"umidade":0.111,"impureza":0.01,"saldoLiquido":38541.0,"vlSaca":3.6},{"data":"2026-03-04","talhao":"PALHADA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38900.0,"umidade":0.08,"impureza":0.005,"saldoLiquido":38705.0,"vlSaca":3.6},{"data":"2026-03-04","talhao":"PALHADA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":39900.0,"umidade":0.085,"impureza":0.01,"saldoLiquido":39501.0,"vlSaca":3.6},{"data":"2026-03-04","talhao":"CACHOEIRA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38910.0,"umidade":0.099,"impureza":0.01,"saldoLiquido":38521.0,"vlSaca":3.6},{"data":"2026-03-04","talhao":"CACHOEIRA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":30330.0,"umidade":0.083,"impureza":0.01,"saldoLiquido":30027.0,"vlSaca":3.6},{"data":"2026-03-05","talhao":"CACHOEIRA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":30740.0,"umidade":0.082,"impureza":0.04,"saldoLiquido":29510.0,"vlSaca":3.6},{"data":"2026-03-05","talhao":"CACHOEIRA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":18295.0,"umidade":0.117,"impureza":0.066,"saldoLiquido":17087.5,"vlSaca":3.6},{"data":"2026-03-05","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":18295.0,"umidade":0.117,"impureza":0.066,"saldoLiquido":17087.5,"vlSaca":3.6},{"data":"2026-03-06","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":31570.0,"umidade":0.097,"impureza":0.037,"saldoLiquido":30402.0,"vlSaca":3.6},{"data":"2026-03-06","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":53960.0,"umidade":0.105,"impureza":0.012,"saldoLiquido":53312.0,"vlSaca":3.6},{"data":"2026-03-06","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38860.0,"umidade":0.114,"impureza":0.026,"saldoLiquido":37850.0,"vlSaca":3.6},{"data":"2026-03-07","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":37130.0,"umidade":0.14,"impureza":0.015,"saldoLiquido":36573.0,"vlSaca":3.6},{"data":"2026-03-07","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38960.0,"umidade":0.15,"impureza":0.007,"saldoLiquido":37817.0,"vlSaca":3.6},{"data":"2026-03-07","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":54710.0,"umidade":0.136,"impureza":0.016,"saldoLiquido":53835.0,"vlSaca":3.6},{"data":"2026-03-10","talhao":"ARUANA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"AGENOR","pesoBruto":16560.0,"umidade":0.15,"impureza":0.005,"saldoLiquido":16195.0,"vlSaca":3.0},{"data":"2026-03-13","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":40040.0,"umidade":0.162,"impureza":0.011,"saldoLiquido":37996.0,"vlSaca":3.6},{"data":"2026-03-13","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":55310.0,"umidade":0.155,"impureza":0.008,"saldoLiquido":53222.0,"vlSaca":3.6},{"data":"2026-03-14","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38940.0,"umidade":0.164,"impureza":0.018,"saldoLiquido":36576.0,"vlSaca":3.6},{"data":"2026-03-14","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":32150.0,"umidade":0.141,"impureza":0.01,"saldoLiquido":31303.0,"vlSaca":3.6},{"data":"2026-03-14","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":56180.0,"umidade":0.137,"impureza":0.009,"saldoLiquido":55674.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38520.0,"umidade":0.133,"impureza":0.009,"saldoLiquido":38173.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":30860.0,"umidade":0.128,"impureza":0.011,"saldoLiquido":30521.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38710.0,"umidade":0.145,"impureza":0.012,"saldoLiquido":37671.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":56570.0,"umidade":0.129,"impureza":0.014,"saldoLiquido":55778.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38950.0,"umidade":0.12,"impureza":0.01,"saldoLiquido":38560.0,"vlSaca":3.6},{"data":"2026-03-16","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":39950.0,"umidade":0.119,"impureza":0.019,"saldoLiquido":38838.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":55170.0,"umidade":0.143,"impureza":0.007,"saldoLiquido":54291.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38250.0,"umidade":0.16,"impureza":0.007,"saldoLiquido":36558.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":39630.0,"umidade":0.157,"impureza":0.01,"saldoLiquido":37939.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":31090.0,"umidade":0.157,"impureza":0.007,"saldoLiquido":29853.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":12000.0,"umidade":0.159,"impureza":0.009,"saldoLiquido":12000.0,"vlSaca":3.6},{"data":"2026-03-18","talhao":"TALHÃO 21","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":44350.0,"umidade":0.159,"impureza":0.009,"saldoLiquido":41833.0,"vlSaca":3.6},{"data":"2026-03-18","talhao":"TALHÃO 21","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":39210.0,"umidade":0.149,"impureza":0.01,"saldoLiquido":38003.0,"vlSaca":3.6},{"data":"2026-03-19","talhao":"TALHÃO 21","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":31580.0,"umidade":0.159,"impureza":0.012,"saldoLiquido":30078.0,"vlSaca":3.6},{"data":"2026-03-19","talhao":"TALHÃO 21","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":27060.0,"umidade":0.176,"impureza":0.016,"saldoLiquido":24071.0,"vlSaca":3.6},{"data":"2026-03-19","talhao":"TALHÃO 18","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":12000.0,"umidade":0.176,"impureza":0.016,"saldoLiquido":12000.0,"vlSaca":3.6},{"data":"2026-03-19","talhao":"TALHÃO 18","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":55870.0,"umidade":0.153,"impureza":0.019,"saldoLiquido":53328.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"TALHÃO 18","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":4800.0,"umidade":0.199,"impureza":0.026,"saldoLiquido":4800.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":4800.0,"umidade":0.199,"impureza":0.026,"saldoLiquido":4800.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"TALHÃO 19","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":27150.0,"umidade":0.199,"impureza":0.026,"saldoLiquido":22758.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"LIXÃO","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38540.0,"umidade":0.173,"impureza":0.012,"saldoLiquido":35908.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"LIXÃO","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":54260.0,"umidade":0.168,"impureza":0.01,"saldoLiquido":51058.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"LIXÃO","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":31760.0,"umidade":0.144,"impureza":0.008,"saldoLiquido":31128.0,"vlSaca":3.6},{"data":"2026-03-21","talhao":"TALHÃO 19","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":51740.0,"umidade":0.189,"impureza":0.018,"saldoLiquido":46693.0,"vlSaca":3.6}];
+const TALHOES_SOJA = [{"talhao":"TALHÃO 16","area":72.0,"variedade":"","variedade2":"","plantado":true},{"talhao":"TALHÃO 18","area":18.0,"variedade":"","variedade2":"","plantado":true},{"talhao":"TALHÃO 19","area":21.31,"variedade":"","variedade2":"","plantado":true},{"talhao":"LIXÃO","area":28.26,"variedade":"","variedade2":"","plantado":true},{"talhao":"TALHÃO 21","area":33.89,"variedade":"","variedade2":"","plantado":true},{"talhao":"ARUANA","area":82.58,"variedade":"","variedade2":"","plantado":true},{"talhao":"PALHADA","area":104.78,"variedade":"","variedade2":"","plantado":true},{"talhao":"BASE III","area":63.32,"variedade":"","variedade2":"","plantado":true},{"talhao":"CACHOEIRA","area":30.7,"variedade":"","variedade2":"","plantado":true},{"talhao":"FAZENDA","area":0.0,"variedade":"","variedade2":"","plantado":false}];
+const LOCAIS_SOJA = ["ADM DO BRASIL - CGR","COAMO - SIDROLANDIA","CARGIL - CGR","SILO VIZINHO","LAR"];
+const MOTORISTAS_SOJA = ["WELLINGSON","AGENOR","ALEXSANDRO","ALESSANDRO"];
+const VENDAS_SOJA = [];
+
+function criarSafraSoja2526Importada(){
+  return {
+    nome: "Soja 2025/2026", cultura: "Soja",
+    produtor: PRODUTOR_FIXO, propriedade: "FAZENDA PARAÍSO",
+    talhoes: JSON.parse(JSON.stringify(TALHOES_SOJA)),
+    locais: [...LOCAIS_SOJA],
+    motoristas: [...MOTORISTAS_SOJA],
+    colheita: JSON.parse(JSON.stringify(COLHEITA_SOJA)),
+    adiantamentos: [],
+    vendas: JSON.parse(JSON.stringify(VENDAS_SOJA)),
+  };
+}
+
+
+// =================== VARIEDADES POR TALHÃO ===================
+function variedadesDoTalhao(safra, talhao){
+  const t = (safra.talhoes || []).find(x=>x.talhao===talhao);
+  if(!t) return [];
+  return [t.variedade, t.variedade2].map(v=>String(v||'').trim()).filter((v,i,a)=>v && a.indexOf(v)===i);
+}
+
+function normalizarEstruturaSafras(safras){
+  Object.entries(safras || {}).forEach(([chave,s])=>{
+    s.talhoes = Array.isArray(s.talhoes) ? s.talhoes : [];
+    s.colheita = Array.isArray(s.colheita) ? s.colheita : [];
+    s.talhoes.forEach(t=>{
+      if(t.variedade===undefined || t.variedade===null) t.variedade='';
+      if(t.variedade2===undefined || t.variedade2===null) t.variedade2='';
+    });
+    if(chave==='milho2526' || String(s.cultura||'').toLowerCase()==='milho'){
+      s.colheita.forEach(c=>{
+        if(!String(c.variedade||'').trim()){
+          const vars = variedadesDoTalhao(s, c.talhao);
+          if(vars.length) c.variedade = vars[0];
+        }
+      });
+    }
+  });
+  return safras;
+}
 
 // =================== ESTADO GLOBAL ===================
 let state = {
@@ -194,10 +276,12 @@ let state = {
       colheita: JSON.parse(JSON.stringify(COLHEITA_MILHO)),
       adiantamentos: JSON.parse(JSON.stringify(ADIANTAMENTO_MILHO)),
       vendas: [],
-    }
+    },
+    soja2526: criarSafraSoja2526Importada()
   }
 };
 let currentPage = "dashboard";
+normalizarEstruturaSafras(state.safras);
 function S(){ return state.safras[state.safraAtual]; }
 
 // =================== SINCRONIZAÇÃO EM NUVEM (Firebase Firestore) ===================
@@ -214,6 +298,39 @@ const FIREBASE_CONFIG = {
 const FIREBASE_CONFIGURADO = FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== "COLOQUE_AQUI";
 
 let db = null, docRef = null, firebaseReady = false, suppressSave = false, saveTimer = null;
+let unsubscribeSnapshot = null;
+
+// =================== DESFAZER GERAL ===================
+const UNDO_LIMIT = 50;
+let undoStack = [];
+function cloneStateForUndo(){ return JSON.parse(JSON.stringify(state)); }
+function updateUndoButton(){
+  const b = document.getElementById('undoBtn');
+  if(b) b.disabled = undoStack.length===0;
+}
+function recordUndo(){
+  undoStack.push(cloneStateForUndo());
+  if(undoStack.length>UNDO_LIMIT) undoStack.shift();
+  updateUndoButton();
+}
+function clearUndoHistory(){ undoStack = []; updateUndoButton(); }
+function undoLastChange(){
+  if(!undoStack.length) return;
+  clearTimeout(saveTimer);
+  const previous = undoStack.pop();
+  state = previous;
+  normalizarEstruturaSafras(state.safras);
+  render();
+  updateUndoButton();
+  scheduleSave(true);
+}
+
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z' && document.body.classList.contains('authenticated')){
+    e.preventDefault();
+    undoLastChange();
+  }
+});
 
 function setSyncStatus(text, cls){
   const el = document.getElementById('sync-status');
@@ -222,7 +339,7 @@ function setSyncStatus(text, cls){
 
 function initFirebase(){
   try{
-    firebase.initializeApp(FIREBASE_CONFIG);
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.firestore();
     docRef = db.collection('custos-safra').doc('estado-atual');
     setSyncStatus('🟡 Conectando...', 'local');
@@ -230,10 +347,19 @@ function initFirebase(){
     docRef.get().then(snap=>{
       if(snap.exists && snap.data().safras){
         suppressSave = true;
-        state.safras = snap.data().safras;
+        state.safras = normalizarEstruturaSafras(snap.data().safras);
+        clearUndoHistory();
+        let adicionouSojaImportada = false;
+        if(!state.safras.soja2526){
+          state.safras.soja2526 = criarSafraSoja2526Importada();
+          adicionouSojaImportada = true;
+        }
         if(!state.safras[state.safraAtual]) state.safraAtual = Object.keys(state.safras)[0];
         render();
         suppressSave = false;
+        if(adicionouSojaImportada){
+          docRef.set({safras: JSON.parse(JSON.stringify(state.safras))});
+        }
       } else {
         // primeira vez: manda os dados iniciais (milho) pro banco
         docRef.set({safras: JSON.parse(JSON.stringify(state.safras))});
@@ -241,13 +367,15 @@ function initFirebase(){
       firebaseReady = true;
       setSyncStatus('🟢 Sincronizado', 'ok');
 
-      docRef.onSnapshot(snap=>{
+      if(unsubscribeSnapshot) unsubscribeSnapshot();
+      unsubscribeSnapshot = docRef.onSnapshot(snap=>{
         if(!snap.exists) return;
         const remote = snap.data().safras;
         if(!remote) return;
         if(JSON.stringify(remote) === JSON.stringify(state.safras)) return; // eco da própria escrita
         suppressSave = true;
-        state.safras = remote;
+        state.safras = normalizarEstruturaSafras(remote);
+        clearUndoHistory();
         if(!state.safras[state.safraAtual]) state.safraAtual = Object.keys(state.safras)[0];
         render();
         suppressSave = false;
@@ -259,7 +387,7 @@ function initFirebase(){
     setSyncStatus('🔴 Erro na configuração', 'err');
   }
 }
-function scheduleSave(){
+function scheduleSave(immediate=false){
   if(!firebaseReady || suppressSave || !docRef) return;
   setSyncStatus('🟡 Salvando...', 'local');
   clearTimeout(saveTimer);
@@ -267,7 +395,7 @@ function scheduleSave(){
     docRef.set({safras: JSON.parse(JSON.stringify(state.safras))})
       .then(()=> setSyncStatus('🟢 Sincronizado', 'ok'))
       .catch(err=>{ console.error(err); setSyncStatus('🔴 Erro ao salvar', 'err'); });
-  }, 600);
+  }, immediate ? 0 : 600);
 }
 
 function fmt(n, dec=2){ return Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:dec, maximumFractionDigits:dec}); }
@@ -356,6 +484,41 @@ function pageDashboard(){
     };
   });
   const maxSacas = Math.max(1, ...talhaoRows.map(r=>r.sacas));
+  const talhaoTotais = talhaoRows.reduce((acc,r)=>({
+    area:acc.area+Number(r.area||0), cargas:acc.cargas+Number(r.cargas||0), sacas:acc.sacas+Number(r.sacas||0),
+    sacasPerdidas:acc.sacasPerdidas+Number(r.sacasPerdidas||0)
+  }),{area:0,cargas:0,sacas:0,sacasPerdidas:0});
+  const talhaoScHa = talhaoTotais.area ? talhaoTotais.sacas/talhaoTotais.area : 0;
+  const talhaoUmidadeMedia = s.colheita.length ? s.colheita.reduce((sum,c)=>sum+Number(c.umidade||0),0)/s.colheita.length : 0;
+
+  const porVariedade = {};
+  s.colheita.forEach(c=>{
+    const variedade = String(c.variedade||'').trim();
+    if(!variedade) return;
+    if(!porVariedade[variedade]) porVariedade[variedade]={sacas:0,pesoBruto:0,pesoLiquido:0,umidadeSum:0,cargas:0,talhoes:new Set()};
+    const d = colheitaDerived(c);
+    const p = porVariedade[variedade];
+    p.sacas += d.sacasLiquidas;
+    p.pesoBruto += Number(c.pesoBruto||0);
+    p.pesoLiquido += Number(c.saldoLiquido||0);
+    p.umidadeSum += Number(c.umidade||0);
+    p.cargas += 1;
+    if(c.talhao) p.talhoes.add(c.talhao);
+  });
+  const variedadeRows = Object.entries(porVariedade).map(([variedade,p])=>{
+    const area = s.talhoes
+      .filter(t=>p.talhoes.has(t.talhao) && [t.variedade,t.variedade2].map(x=>String(x||'').trim()).includes(variedade))
+      .reduce((sum,t)=>sum+Number(t.area||0),0);
+    return {
+      variedade, area, sacas:p.sacas, scha:area?p.sacas/area:0,
+      sacasPerdidas:(p.pesoBruto-p.pesoLiquido)/60,
+      umidadeMed:p.cargas?p.umidadeSum/p.cargas:0
+    };
+  }).sort((a,b)=>a.variedade.localeCompare(b.variedade,'pt-BR'));
+  const variedadeTotais = variedadeRows.reduce((acc,r)=>({area:acc.area+r.area,sacas:acc.sacas+r.sacas,sacasPerdidas:acc.sacasPerdidas+r.sacasPerdidas}),{area:0,sacas:0,sacasPerdidas:0});
+  const variedadeScHa = variedadeTotais.area ? variedadeTotais.sacas/variedadeTotais.area : 0;
+  const cargasComVariedade = s.colheita.filter(c=>String(c.variedade||'').trim());
+  const variedadeUmidadeMedia = cargasComVariedade.length ? cargasComVariedade.reduce((sum,c)=>sum+Number(c.umidade||0),0)/cargasComVariedade.length : 0;
 
   const freteMotorista = s.motoristas.map(mot=>{
     const cargas = s.colheita.filter(c=>c.motorista===mot);
@@ -363,6 +526,10 @@ function pageDashboard(){
     const adiantado = s.adiantamentos.filter(a=>a.motorista===mot).reduce((sum,a)=>sum+Number(a.valor||0),0);
     return {mot, cargas: cargas.length, totalFrete, adiantado, aPagar: totalFrete-adiantado};
   }).filter(r=>r.cargas>0 || r.adiantado>0);
+  const freteTotais = freteMotorista.reduce((acc,r)=>({
+    cargas:acc.cargas+Number(r.cargas||0), totalFrete:acc.totalFrete+Number(r.totalFrete||0),
+    adiantado:acc.adiantado+Number(r.adiantado||0), aPagar:acc.aPagar+Number(r.aPagar||0)
+  }),{cargas:0,totalFrete:0,adiantado:0,aPagar:0});
 
   const entregasLocal = s.locais.map(local=>{
     const cargasLocal = s.colheita.filter(c=>c.local===local);
@@ -376,6 +543,13 @@ function pageDashboard(){
       precoMedioLocal: vendidasLocal? fatLocal/vendidasLocal : 0,
     };
   }).filter(r=>r.cargas>0 || r.vendidasLocal>0);
+  const entregasTotais = entregasLocal.reduce((acc,r)=>({
+    cargas:acc.cargas+Number(r.cargas||0), pesoLiq:acc.pesoLiq+Number(r.pesoLiq||0),
+    sacasLiqLocal:acc.sacasLiqLocal+Number(r.sacasLiqLocal||0), vendidasLocal:acc.vendidasLocal+Number(r.vendidasLocal||0),
+    saldo:acc.saldo+Number(r.saldo||0)
+  }),{cargas:0,pesoLiq:0,sacasLiqLocal:0,vendidasLocal:0,saldo:0});
+  const entregasPctVendida = entregasTotais.sacasLiqLocal ? entregasTotais.vendidasLocal/entregasTotais.sacasLiqLocal : 0;
+  const entregasPrecoMedio = entregasTotais.vendidasLocal ? faturamento/entregasTotais.vendidasLocal : 0;
 
   return `
     <div class="toolbar no-print" style="justify-content:flex-end;">
@@ -411,8 +585,20 @@ function pageDashboard(){
             <td class="readonly">${fmt(r.sacas)}</td><td class="readonly">${fmt(r.scha)}</td><td class="readonly text-red">${fmt(r.sacasPerdidas)}</td><td class="readonly">${fmtPct(r.umidadeMed)}</td>
             <td class="readonly" style="width:180px;"><div style="background:var(--wheat); height:10px; border-radius:4px; width:${(r.sacas/maxSacas*100).toFixed(0)}%;"></div></td>
           </tr>`).join('')}
+          <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${fmt(talhaoTotais.area)}</strong></td><td class="readonly"><strong>${talhaoTotais.cargas}</strong></td><td class="readonly"><strong>${fmt(talhaoTotais.sacas)}</strong></td><td class="readonly"><strong>${fmt(talhaoScHa,1)}</strong></td><td class="readonly text-red"><strong>${fmt(talhaoTotais.sacasPerdidas,1)}</strong></td><td class="readonly"><strong>${fmtPct(talhaoUmidadeMedia)}</strong></td><td class="readonly"></td></tr>
         </table></div>
       ` : `<div class="empty">Lance colheitas para ver a produção por talhão.</div>`}
+    </div>
+
+    <div class="panel">
+      <p class="section-title">Produção por variedade</p>
+      ${variedadeRows.length ? `
+        <div class="table-wrap"><table style="min-width:760px;">
+          <tr><th style="padding:8px 10px;">Variedade</th><th style="padding:8px 10px;">Área (ha)</th><th style="padding:8px 10px;">Sacas líq.</th><th style="padding:8px 10px;">Sc / ha</th><th style="padding:8px 10px; color:var(--alert);">Sacas perdidas</th><th style="padding:8px 10px;">Umidade méd.</th></tr>
+          ${variedadeRows.map(r=>`<tr><td class="readonly">${esc(r.variedade)}</td><td class="readonly">${fmt(r.area)}</td><td class="readonly">${fmt(r.sacas)}</td><td class="readonly"><strong>${fmt(r.scha,1)}</strong></td><td class="readonly text-red">${fmt(r.sacasPerdidas,1)}</td><td class="readonly"><strong>${fmtPct(r.umidadeMed)}</strong></td></tr>`).join('')}
+          <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${fmt(variedadeTotais.area)}</strong></td><td class="readonly"><strong>${fmt(variedadeTotais.sacas)}</strong></td><td class="readonly"><strong>${fmt(variedadeScHa,1)}</strong></td><td class="readonly text-red"><strong>${fmt(variedadeTotais.sacasPerdidas,1)}</strong></td><td class="readonly"><strong>${fmtPct(variedadeUmidadeMedia)}</strong></td></tr>
+        </table></div>
+      ` : `<div class="empty">Cadastre a variedade nos talhões e/ou na colheita para ver a produção por variedade.</div>`}
     </div>
 
     ${freteMotorista.length ? `
@@ -421,6 +607,7 @@ function pageDashboard(){
       <div class="table-wrap"><table style="min-width:700px;">
         <tr><th style="padding:8px 10px;">Motorista</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Total Frete</th><th style="padding:8px 10px;">Adiantado</th><th style="padding:8px 10px;">A Pagar</th></tr>
         ${freteMotorista.map(r=>`<tr><td class="readonly">${esc(r.mot)}</td><td class="readonly">${r.cargas}</td><td class="readonly">${fmtR(r.totalFrete)}</td><td class="readonly">${fmtR(r.adiantado)}</td><td class="readonly text-red">${fmtR(r.aPagar)}</td></tr>`).join('')}
+        <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${freteTotais.cargas}</strong></td><td class="readonly"><strong>${fmtR(freteTotais.totalFrete)}</strong></td><td class="readonly"><strong>${fmtR(freteTotais.adiantado)}</strong></td><td class="readonly text-red"><strong>${fmtR(freteTotais.aPagar)}</strong></td></tr>
       </table></div>
     </div>` : ''}
 
@@ -430,6 +617,7 @@ function pageDashboard(){
       <div class="table-wrap"><table style="min-width:900px;">
         <tr><th style="padding:8px 10px;">Local - Silo</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Peso Líq. (kg)</th><th style="padding:8px 10px;">Sacas (60kg)</th><th style="padding:8px 10px;">Sacas Vendidas</th><th style="padding:8px 10px;">Saldo a Vender</th><th style="padding:8px 10px;">% Vendida</th><th style="padding:8px 10px;">Preço Médio</th></tr>
         ${entregasLocal.map(r=>`<tr><td class="readonly">${esc(r.local)}</td><td class="readonly">${r.cargas}</td><td class="readonly">${fmt(r.pesoLiq,0)}</td><td class="readonly">${fmt(r.sacasLiqLocal)}</td><td class="readonly">${fmt(r.vendidasLocal)}</td><td class="readonly">${fmt(r.saldo)}</td><td class="readonly">${fmtPct(r.pctVendida)}</td><td class="readonly">${fmtR(r.precoMedioLocal)}</td></tr>`).join('')}
+        <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${entregasTotais.cargas}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.pesoLiq,0)}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.sacasLiqLocal)}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.vendidasLocal)}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.saldo)}</strong></td><td class="readonly"><strong>${fmtPct(entregasPctVendida)}</strong></td><td class="readonly"><strong>${fmtR(entregasPrecoMedio)}</strong></td></tr>
       </table></div>
     </div>` : ''}
   `;
@@ -599,10 +787,12 @@ function tableCellHtml(cfg, row, idx, col){
   return `<td><input type="text" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${esc(row[col.key])}" oninput="onCellEdit(this,'${cfg.tableKey}')"></td>`;
 }
 function onCellEditCheckbox(el, tableKey){
+  recordUndo();
   const idx = Number(el.dataset.idx);
   const field = el.dataset.field;
   const row = tableRowsVisible[tableKey][idx];
   row[field] = el.checked;
+  scheduleSave();
 }
 
 let tableRowsVisible = {};
@@ -624,6 +814,7 @@ function renderTbody(tableKey){
 }
 
 function onCellEdit(el, tableKey){
+  recordUndo();
   const idx = Number(el.dataset.idx);
   const field = el.dataset.field;
   const row = tableRowsVisible[tableKey][idx];
@@ -657,14 +848,16 @@ function onCellEdit(el, tableKey){
       else display = fmt(v) + (col.unit ? ' '+col.unit : '');
       tr.children[ci].textContent = display;
     }
-  });
+  });  scheduleSave();
 }
 function addTableRow(tableKey){
+  recordUndo();
   const cfg = tableRegistry[tableKey];
   cfg.rows.push(cfg.newRow());
   render();
 }
 function deleteTableRow(tableKey, idx){
+  recordUndo();
   const cfg = tableRegistry[tableKey];
   const row = tableRowsVisible[tableKey][idx];
   const realIdx = cfg.rows.indexOf(row);
@@ -695,6 +888,7 @@ function renderAddForm(cfg){
   `;
 }
 function submitAddForm(tableKey){
+  recordUndo();
   const cfg = tableRegistry[tableKey];
   const wrap = document.getElementById('addform-'+tableKey);
   const row = {};
@@ -760,7 +954,7 @@ async function exportSafraCompleta(){
   const colheitaCfg = buildColheitaCfg(s);
   const adtoCfg = buildAdiantamentosCfg(s);
   const vendaCfg = buildVendasCfg(s);
-  await addSheetForTable(wb, 'Cadastros - Talhoes', [{key:'talhao',label:'Talhão'},{key:'area',label:'Área (ha)',type:'number'},{key:'variedade',label:'Variedade'}], s.talhoes, ()=>({}));
+  await addSheetForTable(wb, 'Cadastros - Talhoes', [{key:'talhao',label:'Talhão'},{key:'area',label:'Área (ha)',type:'number'},{key:'variedade',label:'Variedade 1'},{key:'variedade2',label:'Variedade 2'}], s.talhoes, ()=>({}));
   await addSheetForTable(wb, 'Colheita', colheitaCfg.columns, colheitaCfg.rows, colheitaCfg.computeDerived);
   await addSheetForTable(wb, 'Adiantamento', adtoCfg.columns, adtoCfg.rows, adtoCfg.computeDerived);
   await addSheetForTable(wb, 'Silos e Vendas', vendaCfg.columns, vendaCfg.rows, vendaCfg.computeDerived);
@@ -779,7 +973,7 @@ function downloadBuffer(buf, filename){
 function buildColheitaCfg(s){
   return {
     tableKey: 'colheita', title: '🚜 Colheita',
-    caption: 'Clique no ▾ do cabeçalho para filtrar (igual Excel) ou ordenar. Edite qualquer célula direto na tabela.',
+    caption: 'Clique no ▾ do cabeçalho para filtrar ou ordenar. A variedade é sugerida pelo talhão; se houver duas variedades no mesmo talhão, você pode alterar a variedade na própria linha.',
     rows: s.colheita, exportName: 'colheita', computeDerived: colheitaDerived,
     columns: [
       {key:'data', label:'Data', type:'date'},
@@ -935,10 +1129,11 @@ function pageCadastros(){
     columns: [
       {key:'talhao', label:'Talhão', type:'text'},
       {key:'area', label:'Área', type:'number', unit:'ha'},
-      {key:'variedade', label:'Variedade', type:'text'},
+      {key:'variedade', label:'Variedade 1', type:'text'},
+      {key:'variedade2', label:'Variedade 2', type:'text'},
       {key:'plantado', label:'Será Plantado?', type:'checkbox'},
     ],
-    newRow: ()=>({talhao:'', area:0, variedade:'', plantado:false}),
+    newRow: ()=>({talhao:'', area:0, variedade:'', variedade2:'', plantado:false}),
   };
   cfg.formHtml = renderAddForm(cfg);
   const areaTotalCadastrada = s.talhoes.reduce((sum,t)=>sum+Number(t.area||0),0);
@@ -972,8 +1167,8 @@ function pageCadastros(){
     </div>
   `;
 }
-function removerLocal(i){ S().locais.splice(i,1); render(); }
-function removerMotorista(i){ S().motoristas.splice(i,1); render(); }
+function removerLocal(i){ recordUndo(); S().locais.splice(i,1); render(); }
+function removerMotorista(i){ recordUndo(); S().motoristas.splice(i,1); render(); }
 
 // =================== PÁGINA: CADASTRO DE SAFRA ===================
 function pageSafras(){
@@ -1015,6 +1210,7 @@ function pageSafras(){
 }
 function usarSafra(key){ state.safraAtual = key; setPage('dashboard'); }
 function removerSafra(key){
+  recordUndo();
   delete state.safras[key];
   if(state.safraAtual===key) state.safraAtual = Object.keys(state.safras)[0];
   render();
@@ -1026,9 +1222,10 @@ function criarNovaSafra(){
   const propriedade = document.getElementById('nova-safra-propriedade').value.trim() || S().propriedade;
   const atual = S();
   const key = 'safra_' + Date.now();
+  recordUndo();
   state.safras[key] = {
     nome, cultura, produtor: PRODUTOR_FIXO, propriedade,
-    talhoes: JSON.parse(JSON.stringify(atual.talhoes)).map(t=>({...t, variedade:'', plantado:false})),
+    talhoes: JSON.parse(JSON.stringify(atual.talhoes)).map(t=>({...t, variedade:'', variedade2:'', plantado:false})),
     locais: [...atual.locais],
     motoristas: [...atual.motoristas],
     colheita: [], adiantamentos: [], vendas: [],
@@ -1042,10 +1239,10 @@ function bindStaticEvents(){
   Object.keys(tableRegistry).forEach(k=>{ if(document.getElementById('tbody-'+k)) renderTbody(k); });
 
   const fLocal = document.getElementById('form-local');
-  if(fLocal) fLocal.addEventListener('submit', e=>{ e.preventDefault(); const f=new FormData(fLocal); S().locais.push(f.get('local')); render(); });
+  if(fLocal) fLocal.addEventListener('submit', e=>{ e.preventDefault(); recordUndo(); const f=new FormData(fLocal); S().locais.push(f.get('local')); render(); });
 
   const fMot = document.getElementById('form-mot');
-  if(fMot) fMot.addEventListener('submit', e=>{ e.preventDefault(); const f=new FormData(fMot); S().motoristas.push(f.get('mot')); render(); });
+  if(fMot) fMot.addEventListener('submit', e=>{ e.preventDefault(); recordUndo(); const f=new FormData(fMot); S().motoristas.push(f.get('mot')); render(); });
 
   // autofill no formulário de "Adicionar registro" (ex: variedade sugerida ao escolher o talhão)
   Object.values(tableRegistry).forEach(cfg=>{
@@ -1064,9 +1261,57 @@ function bindStaticEvents(){
   });
 }
 
+// =================== LOGIN FIREBASE ===================
+function showAuthState(loggedIn){
+  document.body.classList.remove('auth-pending','auth-logged-out','authenticated');
+  document.body.classList.add(loggedIn ? 'authenticated' : 'auth-logged-out');
+}
+function authErrorMessage(err){
+  const code = err && err.code || '';
+  if(code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return 'E-mail ou senha incorretos.';
+  if(code.includes('too-many-requests')) return 'Muitas tentativas. Aguarde um pouco e tente novamente.';
+  return 'Não foi possível entrar. Confira o e-mail e a senha.';
+}
+function initAuth(){
+  if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+
+  const form = document.getElementById('loginForm');
+  const btn = document.getElementById('loginButton');
+  const errEl = document.getElementById('loginError');
+  form.addEventListener('submit', async e=>{
+    e.preventDefault();
+    errEl.textContent=''; btn.disabled=true; btn.textContent='Entrando...';
+    try{
+      await firebase.auth().signInWithEmailAndPassword(
+        document.getElementById('loginEmail').value.trim(),
+        document.getElementById('loginPassword').value
+      );
+    }catch(err){ errEl.textContent=authErrorMessage(err); }
+    finally{ btn.disabled=false; btn.textContent='Entrar'; }
+  });
+  document.getElementById('logoutBtn').addEventListener('click', ()=>firebase.auth().signOut());
+
+  firebase.auth().onAuthStateChanged(user=>{
+    if(user){
+      showAuthState(true);
+      if(!firebaseReady) initFirebase();
+      else render();
+    }else{
+      showAuthState(false);
+      clearUndoHistory();
+      firebaseReady=false;
+      if(unsubscribeSnapshot){ unsubscribeSnapshot(); unsubscribeSnapshot=null; }
+      db=null; docRef=null;
+      setSyncStatus('⚪ Aguardando login', 'local');
+    }
+  });
+}
+
 if(FIREBASE_CONFIGURADO){
-  initFirebase();
+  initAuth();
 } else {
+  showAuthState(true);
   render();
 }
 </script>
