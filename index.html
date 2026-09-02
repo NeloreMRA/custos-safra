@@ -251,14 +251,16 @@ function normalizarEstruturaSafras(safras){
       if(t.variedade===undefined || t.variedade===null) t.variedade='';
       if(t.variedade2===undefined || t.variedade2===null) t.variedade2='';
     });
-    if(chave==='milho2526' || String(s.cultura||'').toLowerCase()==='milho'){
-      s.colheita.forEach(c=>{
-        if(!String(c.variedade||'').trim()){
-          const vars = variedadesDoTalhao(s, c.talhao);
-          if(vars.length) c.variedade = vars[0];
-        }
-      });
-    }
+    // Preenche automaticamente a variedade faltante em QUALQUER cultura
+    // usando a primeira variedade cadastrada no respectivo talhão.
+    s.colheita.forEach(c=>{
+      const vars = variedadesDoTalhao(s, c.talhao);
+      const atual = String(c.variedade||'').trim();
+      if(!atual && vars.length) c.variedade = vars[0];
+      // Se o valor antigo não pertence mais ao talhão, mantém enquanto não houver opções;
+      // havendo opções válidas, corrige para a primeira.
+      else if(atual && vars.length && !vars.includes(atual)) c.variedade = vars[0];
+    });
   });
   return safras;
 }
@@ -816,7 +818,8 @@ function tableCellHtml(cfg, row, idx, col){
     return `<td class="readonly">${display}</td>`;
   }
   if(col.type==='select'){
-    const opts = col.optionsFn().map(o=>`<option value="${esc(o)}" ${row[col.key]===o?'selected':''}>${esc(o)}</option>`).join('');
+    const optsList = col.optionsFn ? col.optionsFn(row) : [];
+    const opts = optsList.map(o=>`<option value="${esc(o)}" ${row[col.key]===o?'selected':''}>${esc(o)}</option>`).join('');
     return `<td><select data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" onchange="onCellEdit(this,'${cfg.tableKey}')"><option value="">—</option>${opts}</select></td>`;
   }
   if(col.type==='date'){
@@ -862,6 +865,19 @@ function renderTbody(tableKey){
   }).join('');
 }
 
+function refreshDependentSelects(cfg, row, tr, changedField){
+  cfg.columns.forEach((col,ci)=>{
+    if(col.type!=='select' || col.dependsOn!==changedField) return;
+    const select = tr.children[ci] && tr.children[ci].querySelector('select');
+    if(!select) return;
+    const options = col.optionsFn ? col.optionsFn(row) : [];
+    let chosen = String(row[col.key]||'');
+    if(!options.includes(chosen)) chosen = options[0] || '';
+    row[col.key] = chosen;
+    select.innerHTML = `<option value="">—</option>` + options.map(o=>`<option value="${esc(o)}" ${o===chosen?'selected':''}>${esc(o)}</option>`).join('');
+  });
+}
+
 function onCellEdit(el, tableKey){
   recordUndo();
   const idx = Number(el.dataset.idx);
@@ -875,6 +891,7 @@ function onCellEdit(el, tableKey){
   row[field] = val;
   const tr = el.closest('tr');
   const cfg = tableRegistry[tableKey];
+  refreshDependentSelects(cfg, row, tr, field);
   // autofill de campo dependente (ex: variedade sugerida a partir do talhão), só se o campo alvo estiver vazio
   const editedCol = cfg.columns.find(c=>c.key===field);
   if(editedCol && editedCol.autofillTarget && !row[editedCol.autofillTarget]){
@@ -919,8 +936,9 @@ function renderAddForm(cfg){
   const editableCols = cfg.columns.filter(c=>!c.derived);
   const fields = editableCols.map(c=>{
     if(c.type==='select'){
-      const opts = c.optionsFn().map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');
-      return `<div><label>${c.label}</label><select name="${c.key}">${opts}</select></div>`;
+      const optsList = c.optionsFn ? c.optionsFn(null) : [];
+      const opts = optsList.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');
+      return `<div><label>${c.label}</label><select name="${c.key}"><option value="">—</option>${opts}</select></div>`;
     }
     if(c.type==='date') return `<div><label>${c.label}</label><input type="date" name="${c.key}"></div>`;
     if(c.type==='pctinput') return `<div><label>${c.label} (%)</label><input type="number" step="0.1" name="${c.key}" placeholder="Ex: 15,9"></div>`;
@@ -1026,9 +1044,11 @@ function buildColheitaCfg(s){
     rows: s.colheita, exportName: 'colheita', computeDerived: colheitaDerived,
     columns: [
       {key:'data', label:'Data', type:'date'},
-      {key:'talhao', label:'Talhão', type:'select', optionsFn:()=>{ const p=s.talhoes.filter(t=>t.plantado); return (p.length?p:s.talhoes).map(t=>t.talhao); },
-        autofillTarget:'variedade', autofillFn:(val)=>{ const t=s.talhoes.find(x=>x.talhao===val); return t?t.variedade:''; } },
-      {key:'variedade', label:'Variedade', type:'text'},
+      {key:'talhao', label:'Talhão', type:'select', optionsFn:()=>{ const p=s.talhoes.filter(t=>t.plantado); return (p.length?p:s.talhoes).map(t=>t.talhao); }},
+      {key:'variedade', label:'Variedade', type:'select', dependsOn:'talhao', optionsFn:(row)=>{
+        const talhao = row && row.talhao ? row.talhao : ((s.talhoes.filter(t=>t.plantado)[0] || s.talhoes[0] || {}).talhao || '');
+        return variedadesDoTalhao(s, talhao);
+      }},
       {key:'local', label:'Local - Silo', type:'select', optionsFn:()=>s.locais},
       {key:'motorista', label:'Motorista', type:'select', optionsFn:()=>s.motoristas},
       {key:'pesoBruto', label:'Peso Bruto', type:'number', unit:'kg'},
@@ -1044,8 +1064,8 @@ function buildColheitaCfg(s){
     newRow: ()=>{
       const p = s.talhoes.filter(t=>t.plantado);
       const defaultTalhao = (p[0] || s.talhoes[0] || {}).talhao || '';
-      const t = s.talhoes.find(x=>x.talhao===defaultTalhao);
-      return {data:'', talhao:defaultTalhao, variedade: t?t.variedade:'', local:s.locais[0]||'', motorista:s.motoristas[0]||'', pesoBruto:0, umidade:0, impureza:0, saldoLiquido:0, vlSaca:1.3};
+      const vars = variedadesDoTalhao(s, defaultTalhao);
+      return {data:'', talhao:defaultTalhao, variedade: vars[0]||'', local:s.locais[0]||'', motorista:s.motoristas[0]||'', pesoBruto:0, umidade:0, impureza:0, saldoLiquido:0, vlSaca:1.3};
     },
   };
 }
@@ -1283,6 +1303,54 @@ function criarNovaSafra(){
   setPage('cadastros');
 }
 
+// =================== NAVEGAÇÃO ESTILO EXCEL ===================
+let pendingCellFocus = null;
+function focusTableCell(tableKey, rowIdx, field){
+  const tbody = document.getElementById('tbody-'+tableKey);
+  if(!tbody) return false;
+  const el = tbody.querySelector(`[data-idx="${rowIdx}"][data-field="${field}"]`);
+  if(!el) return false;
+  el.focus();
+  if(el.tagName==='INPUT' && el.type==='text') el.select();
+  return true;
+}
+function bindExcelEnterNavigation(){
+  Object.keys(tableRegistry).forEach(tableKey=>{
+    const tbody = document.getElementById('tbody-'+tableKey);
+    if(!tbody || tbody.dataset.excelEnterBound==='1') return;
+    tbody.dataset.excelEnterBound='1';
+    tbody.addEventListener('keydown', e=>{
+      if(e.key!=='Enter' || e.altKey || e.ctrlKey || e.metaKey) return;
+      const el = e.target.closest('input,select');
+      if(!el || !el.dataset.field) return;
+      e.preventDefault();
+      const field = el.dataset.field;
+      const rowIdx = Number(el.dataset.idx);
+      const targetIdx = e.shiftKey ? rowIdx-1 : rowIdx+1;
+      if(targetIdx>=0 && targetIdx<tableRowsVisible[tableKey].length){
+        focusTableCell(tableKey,targetIdx,field);
+        return;
+      }
+      // No último registro, Enter cria uma nova linha e continua na mesma coluna.
+      if(!e.shiftKey){
+        const cfg = tableRegistry[tableKey];
+        if(cfg && typeof cfg.newRow==='function'){
+          pendingCellFocus = {tableKey, field, rowIdx: tableRowsVisible[tableKey].length};
+          recordUndo();
+          cfg.rows.push(cfg.newRow());
+          render();
+          requestAnimationFrame(()=>{
+            if(pendingCellFocus){
+              focusTableCell(pendingCellFocus.tableKey,pendingCellFocus.rowIdx,pendingCellFocus.field);
+              pendingCellFocus=null;
+            }
+          });
+        }
+      }
+    });
+  });
+}
+
 // =================== EVENTOS ESTÁTICOS ===================
 function bindStaticEvents(){
   Object.keys(tableRegistry).forEach(k=>{ if(document.getElementById('tbody-'+k)) renderTbody(k); });
@@ -1293,21 +1361,37 @@ function bindStaticEvents(){
   const fMot = document.getElementById('form-mot');
   if(fMot) fMot.addEventListener('submit', e=>{ e.preventDefault(); recordUndo(); const f=new FormData(fMot); S().motoristas.push(f.get('mot')); render(); });
 
-  // autofill no formulário de "Adicionar registro" (ex: variedade sugerida ao escolher o talhão)
+  // Campos dependentes no formulário de adicionar registro (ex.: Variedade depende do Talhão)
   Object.values(tableRegistry).forEach(cfg=>{
     const wrap = document.getElementById('addform-'+cfg.tableKey);
     if(!wrap) return;
-    cfg.columns.forEach(col=>{
-      if(!col.autofillTarget) return;
-      const sourceEl = wrap.querySelector(`[name="${col.key}"]`);
-      const targetEl = wrap.querySelector(`[name="${col.autofillTarget}"]`);
-      if(sourceEl && targetEl){
-        sourceEl.addEventListener('change', ()=>{
-          if(!targetEl.value) targetEl.value = col.autofillFn(sourceEl.value) || '';
+    cfg.columns.forEach(sourceCol=>{
+      const sourceEl = wrap.querySelector(`[name="${sourceCol.key}"]`);
+      if(!sourceEl) return;
+      sourceEl.addEventListener('change', ()=>{
+        cfg.columns.forEach(depCol=>{
+          if(depCol.type!=='select' || depCol.dependsOn!==sourceCol.key) return;
+          const targetEl = wrap.querySelector(`[name="${depCol.key}"]`);
+          if(!targetEl) return;
+          const draft = {};
+          cfg.columns.filter(c=>!c.derived).forEach(c=>{
+            const e = wrap.querySelector(`[name="${c.key}"]`);
+            if(e) draft[c.key] = e.type==='checkbox' ? e.checked : e.value;
+          });
+          const options = depCol.optionsFn ? depCol.optionsFn(draft) : [];
+          targetEl.innerHTML = `<option value="">—</option>` + options.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');
+          targetEl.value = options[0] || '';
         });
-      }
+      });
+    });
+    // Garante que os dependentes já abram corretamente ao carregar o formulário.
+    cfg.columns.forEach(sourceCol=>{
+      const sourceEl = wrap.querySelector(`[name="${sourceCol.key}"]`);
+      if(sourceEl && cfg.columns.some(c=>c.dependsOn===sourceCol.key)) sourceEl.dispatchEvent(new Event('change'));
     });
   });
+
+  bindExcelEnterNavigation();
 }
 
 // =================== LOGIN FIREBASE ===================
