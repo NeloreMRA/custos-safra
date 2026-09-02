@@ -71,7 +71,7 @@
   .sync-status.local{background:rgba(201,154,61,.25); color:#f0d9a8;}
   .sync-status.err{background:rgba(179,84,63,.3); color:#f3c9c1;}
   /* Filtro estilo Excel */
-  .filter-panel{position:absolute; top:100%; left:0; z-index:50; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); width:230px; padding:10px; font-weight:normal;}
+  .filter-panel{position:fixed; z-index:2000; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); width:230px; max-width:calc(100vw - 16px); padding:10px; font-weight:normal;}
   .fp-sort-row{display:flex; gap:6px; margin-bottom:8px;}
   .fp-btn{flex:1; background:#f5f3ea; border:1px solid var(--line); border-radius:6px; padding:5px; font-size:11px; cursor:pointer;}
   .fp-btn:hover{background:#ebe8dc;}
@@ -448,6 +448,20 @@ function vendaDerived(r){
   return {sacasVendidas, totalVenda};
 }
 
+
+function dashboardRows(tableKey, rows, columns){
+  tableState[tableKey] = tableState[tableKey] || {colFilters:{}, sortKey:null, sortDir:1};
+  const cfg = {tableKey, rows, columns, computeDerived:r=>r};
+  tableRegistry[tableKey] = cfg;
+  return computeVisibleRows(cfg);
+}
+function dashboardTh(tableKey, key, label, extraStyle=''){
+  const ts = tableState[tableKey] || {colFilters:{}, sortKey:null, sortDir:1};
+  const active = ts.colFilters[key] || ts.sortKey===key;
+  const arrow = ts.sortKey===key ? (ts.sortDir>0?' ▲':' ▼') : '';
+  return `<th style="padding:0;${extraStyle}"><div class="th-flex"><span>${label}${arrow}</span><button class="th-filter-btn ${active?'active':''}" onclick="toggleFilterMenu('${tableKey}','${key}', this)">▾</button></div></th>`;
+}
+
 // =================== DASHBOARD ===================
 function pageDashboard(){
   const s = S();
@@ -483,13 +497,17 @@ function pageDashboard(){
       sacasPerdidas: (p.pesoBruto-p.pesoLiquido)/60, umidadeMed: p.cargas? p.umidadeSum/p.cargas : 0,
     };
   });
-  const maxSacas = Math.max(1, ...talhaoRows.map(r=>r.sacas));
-  const talhaoTotais = talhaoRows.reduce((acc,r)=>({
+  const talhaoVisibleRows = dashboardRows('dash-talhao', talhaoRows, [
+    {key:'talhao',label:'Talhão',type:'text'},{key:'area',label:'Área (ha)',type:'number'},{key:'cargas',label:'Cargas',type:'number'},
+    {key:'sacas',label:'Sacas líq.',type:'number'},{key:'scha',label:'Sc/ha',type:'number'},{key:'sacasPerdidas',label:'Sacas perdidas',type:'number'},{key:'umidadeMed',label:'Umidade méd.',type:'pct'}
+  ]);
+  const talhaoTotais = talhaoVisibleRows.reduce((acc,r)=>({
     area:acc.area+Number(r.area||0), cargas:acc.cargas+Number(r.cargas||0), sacas:acc.sacas+Number(r.sacas||0),
-    sacasPerdidas:acc.sacasPerdidas+Number(r.sacasPerdidas||0)
-  }),{area:0,cargas:0,sacas:0,sacasPerdidas:0});
+    sacasPerdidas:acc.sacasPerdidas+Number(r.sacasPerdidas||0), umidadePeso:acc.umidadePeso+Number(r.umidadeMed||0)*Number(r.cargas||0)
+  }),{area:0,cargas:0,sacas:0,sacasPerdidas:0,umidadePeso:0});
   const talhaoScHa = talhaoTotais.area ? talhaoTotais.sacas/talhaoTotais.area : 0;
-  const talhaoUmidadeMedia = s.colheita.length ? s.colheita.reduce((sum,c)=>sum+Number(c.umidade||0),0)/s.colheita.length : 0;
+  const talhaoUmidadeMedia = talhaoTotais.cargas ? talhaoTotais.umidadePeso/talhaoTotais.cargas : 0;
+  const maxTalhaoScHa = Math.max(1, ...talhaoVisibleRows.map(r=>Number(r.scha||0)));
 
   const porVariedade = {};
   s.colheita.forEach(c=>{
@@ -512,13 +530,19 @@ function pageDashboard(){
     return {
       variedade, area, sacas:p.sacas, scha:area?p.sacas/area:0,
       sacasPerdidas:(p.pesoBruto-p.pesoLiquido)/60,
-      umidadeMed:p.cargas?p.umidadeSum/p.cargas:0
+      umidadeMed:p.cargas?p.umidadeSum/p.cargas:0, cargas:p.cargas
     };
   }).sort((a,b)=>a.variedade.localeCompare(b.variedade,'pt-BR'));
-  const variedadeTotais = variedadeRows.reduce((acc,r)=>({area:acc.area+r.area,sacas:acc.sacas+r.sacas,sacasPerdidas:acc.sacasPerdidas+r.sacasPerdidas}),{area:0,sacas:0,sacasPerdidas:0});
+  const variedadeVisibleRows = dashboardRows('dash-variedade', variedadeRows, [
+    {key:'variedade',label:'Variedade',type:'text'},{key:'area',label:'Área (ha)',type:'number'},{key:'sacas',label:'Sacas líq.',type:'number'},
+    {key:'scha',label:'Sc / ha',type:'number'},{key:'sacasPerdidas',label:'Sacas perdidas',type:'number'},{key:'umidadeMed',label:'Umidade méd.',type:'pct'}
+  ]);
+  const variedadeTotais = variedadeVisibleRows.reduce((acc,r)=>({
+    area:acc.area+Number(r.area||0),sacas:acc.sacas+Number(r.sacas||0),sacasPerdidas:acc.sacasPerdidas+Number(r.sacasPerdidas||0),
+    cargas:acc.cargas+Number(r.cargas||0),umidadePeso:acc.umidadePeso+Number(r.umidadeMed||0)*Number(r.cargas||0)
+  }),{area:0,sacas:0,sacasPerdidas:0,cargas:0,umidadePeso:0});
   const variedadeScHa = variedadeTotais.area ? variedadeTotais.sacas/variedadeTotais.area : 0;
-  const cargasComVariedade = s.colheita.filter(c=>String(c.variedade||'').trim());
-  const variedadeUmidadeMedia = cargasComVariedade.length ? cargasComVariedade.reduce((sum,c)=>sum+Number(c.umidade||0),0)/cargasComVariedade.length : 0;
+  const variedadeUmidadeMedia = variedadeTotais.cargas ? variedadeTotais.umidadePeso/variedadeTotais.cargas : 0;
 
   const freteMotorista = s.motoristas.map(mot=>{
     const cargas = s.colheita.filter(c=>c.motorista===mot);
@@ -526,7 +550,11 @@ function pageDashboard(){
     const adiantado = s.adiantamentos.filter(a=>a.motorista===mot).reduce((sum,a)=>sum+Number(a.valor||0),0);
     return {mot, cargas: cargas.length, totalFrete, adiantado, aPagar: totalFrete-adiantado};
   }).filter(r=>r.cargas>0 || r.adiantado>0);
-  const freteTotais = freteMotorista.reduce((acc,r)=>({
+  const freteVisibleRows = dashboardRows('dash-frete', freteMotorista, [
+    {key:'mot',label:'Motorista',type:'text'},{key:'cargas',label:'Cargas',type:'number'},{key:'totalFrete',label:'Total Frete',type:'money'},
+    {key:'adiantado',label:'Adiantado',type:'money'},{key:'aPagar',label:'A Pagar',type:'money'}
+  ]);
+  const freteTotais = freteVisibleRows.reduce((acc,r)=>({
     cargas:acc.cargas+Number(r.cargas||0), totalFrete:acc.totalFrete+Number(r.totalFrete||0),
     adiantado:acc.adiantado+Number(r.adiantado||0), aPagar:acc.aPagar+Number(r.aPagar||0)
   }),{cargas:0,totalFrete:0,adiantado:0,aPagar:0});
@@ -543,13 +571,18 @@ function pageDashboard(){
       precoMedioLocal: vendidasLocal? fatLocal/vendidasLocal : 0,
     };
   }).filter(r=>r.cargas>0 || r.vendidasLocal>0);
-  const entregasTotais = entregasLocal.reduce((acc,r)=>({
+  const entregasVisibleRows = dashboardRows('dash-entregas', entregasLocal, [
+    {key:'local',label:'Local - Silo',type:'text'},{key:'cargas',label:'Cargas',type:'number'},{key:'pesoLiq',label:'Peso Líq. (kg)',type:'number'},
+    {key:'sacasLiqLocal',label:'Sacas (60kg)',type:'number'},{key:'vendidasLocal',label:'Sacas Vendidas',type:'number'},{key:'saldo',label:'Saldo a Vender',type:'number'},
+    {key:'pctVendida',label:'% Vendida',type:'pct'},{key:'precoMedioLocal',label:'Preço Médio',type:'money'}
+  ]);
+  const entregasTotais = entregasVisibleRows.reduce((acc,r)=>({
     cargas:acc.cargas+Number(r.cargas||0), pesoLiq:acc.pesoLiq+Number(r.pesoLiq||0),
     sacasLiqLocal:acc.sacasLiqLocal+Number(r.sacasLiqLocal||0), vendidasLocal:acc.vendidasLocal+Number(r.vendidasLocal||0),
-    saldo:acc.saldo+Number(r.saldo||0)
-  }),{cargas:0,pesoLiq:0,sacasLiqLocal:0,vendidasLocal:0,saldo:0});
+    saldo:acc.saldo+Number(r.saldo||0), faturamento:acc.faturamento+Number(r.precoMedioLocal||0)*Number(r.vendidasLocal||0)
+  }),{cargas:0,pesoLiq:0,sacasLiqLocal:0,vendidasLocal:0,saldo:0,faturamento:0});
   const entregasPctVendida = entregasTotais.sacasLiqLocal ? entregasTotais.vendidasLocal/entregasTotais.sacasLiqLocal : 0;
-  const entregasPrecoMedio = entregasTotais.vendidasLocal ? faturamento/entregasTotais.vendidasLocal : 0;
+  const entregasPrecoMedio = entregasTotais.vendidasLocal ? entregasTotais.faturamento/entregasTotais.vendidasLocal : 0;
 
   return `
     <div class="toolbar no-print" style="justify-content:flex-end;">
@@ -579,13 +612,13 @@ function pageDashboard(){
       <p class="section-title">Produção por talhão</p>
       ${talhaoRows.length ? `
         <div class="table-wrap"><table style="min-width:900px;">
-          <tr><th style="padding:8px 10px;">Talhão</th><th style="padding:8px 10px;">Área (ha)</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Sacas líq.</th><th style="padding:8px 10px;">Sc/ha</th><th style="padding:8px 10px;">Sacas perdidas</th><th style="padding:8px 10px;">Umidade méd.</th><th style="padding:8px 10px;"></th></tr>
-          ${talhaoRows.map(r=>`<tr>
+          <tr>${dashboardTh('dash-talhao','talhao','Talhão')}${dashboardTh('dash-talhao','area','Área (ha)')}${dashboardTh('dash-talhao','cargas','Cargas')}${dashboardTh('dash-talhao','sacas','Sacas líq.')}${dashboardTh('dash-talhao','scha','Sc/ha')}${dashboardTh('dash-talhao','sacasPerdidas','Sacas perdidas','color:var(--alert);')}${dashboardTh('dash-talhao','umidadeMed','Umidade méd.')}<th style="padding:8px 10px; white-space:nowrap;">Produtividade (Sc/ha)</th></tr>
+          ${talhaoVisibleRows.map(r=>`<tr>
             <td class="readonly">${esc(r.talhao)}</td><td class="readonly">${fmt(r.area)}</td><td class="readonly">${r.cargas}</td>
             <td class="readonly">${fmt(r.sacas)}</td><td class="readonly">${fmt(r.scha)}</td><td class="readonly text-red">${fmt(r.sacasPerdidas)}</td><td class="readonly">${fmtPct(r.umidadeMed)}</td>
-            <td class="readonly" style="width:180px;"><div style="background:var(--wheat); height:10px; border-radius:4px; width:${(r.sacas/maxSacas*100).toFixed(0)}%;"></div></td>
+            <td class="readonly" style="width:190px;"><div title="${fmt(r.scha,1)} Sc/ha" style="background:var(--wheat); height:10px; border-radius:4px; width:${Math.max(0,Math.min(100,(Number(r.scha||0)/maxTalhaoScHa)*100)).toFixed(1)}%;"></div></td>
           </tr>`).join('')}
-          <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${fmt(talhaoTotais.area)}</strong></td><td class="readonly"><strong>${talhaoTotais.cargas}</strong></td><td class="readonly"><strong>${fmt(talhaoTotais.sacas)}</strong></td><td class="readonly"><strong>${fmt(talhaoScHa,1)}</strong></td><td class="readonly text-red"><strong>${fmt(talhaoTotais.sacasPerdidas,1)}</strong></td><td class="readonly"><strong>${fmtPct(talhaoUmidadeMedia)}</strong></td><td class="readonly"></td></tr>
+          <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${fmt(talhaoTotais.area)}</strong></td><td class="readonly"><strong>${talhaoTotais.cargas}</strong></td><td class="readonly"><strong>${fmt(talhaoTotais.sacas)}</strong></td><td class="readonly"><strong>${fmt(talhaoScHa,1)}</strong></td><td class="readonly text-red"><strong>${fmt(talhaoTotais.sacasPerdidas,1)}</strong></td><td class="readonly"><strong>${fmtPct(talhaoUmidadeMedia)}</strong></td><td class="readonly"><strong>${fmt(talhaoScHa,1)} Sc/ha</strong></td></tr>
         </table></div>
       ` : `<div class="empty">Lance colheitas para ver a produção por talhão.</div>`}
     </div>
@@ -594,8 +627,8 @@ function pageDashboard(){
       <p class="section-title">Produção por variedade</p>
       ${variedadeRows.length ? `
         <div class="table-wrap"><table style="min-width:760px;">
-          <tr><th style="padding:8px 10px;">Variedade</th><th style="padding:8px 10px;">Área (ha)</th><th style="padding:8px 10px;">Sacas líq.</th><th style="padding:8px 10px;">Sc / ha</th><th style="padding:8px 10px; color:var(--alert);">Sacas perdidas</th><th style="padding:8px 10px;">Umidade méd.</th></tr>
-          ${variedadeRows.map(r=>`<tr><td class="readonly">${esc(r.variedade)}</td><td class="readonly">${fmt(r.area)}</td><td class="readonly">${fmt(r.sacas)}</td><td class="readonly"><strong>${fmt(r.scha,1)}</strong></td><td class="readonly text-red">${fmt(r.sacasPerdidas,1)}</td><td class="readonly"><strong>${fmtPct(r.umidadeMed)}</strong></td></tr>`).join('')}
+          <tr>${dashboardTh('dash-variedade','variedade','Variedade')}${dashboardTh('dash-variedade','area','Área (ha)')}${dashboardTh('dash-variedade','sacas','Sacas líq.')}${dashboardTh('dash-variedade','scha','Sc / ha')}${dashboardTh('dash-variedade','sacasPerdidas','Sacas perdidas','color:var(--alert);')}${dashboardTh('dash-variedade','umidadeMed','Umidade méd.')}</tr>
+          ${variedadeVisibleRows.map(r=>`<tr><td class="readonly">${esc(r.variedade)}</td><td class="readonly">${fmt(r.area)}</td><td class="readonly">${fmt(r.sacas)}</td><td class="readonly"><strong>${fmt(r.scha,1)}</strong></td><td class="readonly text-red">${fmt(r.sacasPerdidas,1)}</td><td class="readonly"><strong>${fmtPct(r.umidadeMed)}</strong></td></tr>`).join('')}
           <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${fmt(variedadeTotais.area)}</strong></td><td class="readonly"><strong>${fmt(variedadeTotais.sacas)}</strong></td><td class="readonly"><strong>${fmt(variedadeScHa,1)}</strong></td><td class="readonly text-red"><strong>${fmt(variedadeTotais.sacasPerdidas,1)}</strong></td><td class="readonly"><strong>${fmtPct(variedadeUmidadeMedia)}</strong></td></tr>
         </table></div>
       ` : `<div class="empty">Cadastre a variedade nos talhões e/ou na colheita para ver a produção por variedade.</div>`}
@@ -605,8 +638,8 @@ function pageDashboard(){
     <div class="panel">
       <p class="section-title">Frete por motorista</p>
       <div class="table-wrap"><table style="min-width:700px;">
-        <tr><th style="padding:8px 10px;">Motorista</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Total Frete</th><th style="padding:8px 10px;">Adiantado</th><th style="padding:8px 10px;">A Pagar</th></tr>
-        ${freteMotorista.map(r=>`<tr><td class="readonly">${esc(r.mot)}</td><td class="readonly">${r.cargas}</td><td class="readonly">${fmtR(r.totalFrete)}</td><td class="readonly">${fmtR(r.adiantado)}</td><td class="readonly text-red">${fmtR(r.aPagar)}</td></tr>`).join('')}
+        <tr>${dashboardTh('dash-frete','mot','Motorista')}${dashboardTh('dash-frete','cargas','Cargas')}${dashboardTh('dash-frete','totalFrete','Total Frete')}${dashboardTh('dash-frete','adiantado','Adiantado')}${dashboardTh('dash-frete','aPagar','A Pagar')}</tr>
+        ${freteVisibleRows.map(r=>`<tr><td class="readonly">${esc(r.mot)}</td><td class="readonly">${r.cargas}</td><td class="readonly">${fmtR(r.totalFrete)}</td><td class="readonly">${fmtR(r.adiantado)}</td><td class="readonly text-red">${fmtR(r.aPagar)}</td></tr>`).join('')}
         <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${freteTotais.cargas}</strong></td><td class="readonly"><strong>${fmtR(freteTotais.totalFrete)}</strong></td><td class="readonly"><strong>${fmtR(freteTotais.adiantado)}</strong></td><td class="readonly text-red"><strong>${fmtR(freteTotais.aPagar)}</strong></td></tr>
       </table></div>
     </div>` : ''}
@@ -615,8 +648,8 @@ function pageDashboard(){
     <div class="panel">
       <p class="section-title">Entregas e vendas por local</p>
       <div class="table-wrap"><table style="min-width:900px;">
-        <tr><th style="padding:8px 10px;">Local - Silo</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Peso Líq. (kg)</th><th style="padding:8px 10px;">Sacas (60kg)</th><th style="padding:8px 10px;">Sacas Vendidas</th><th style="padding:8px 10px;">Saldo a Vender</th><th style="padding:8px 10px;">% Vendida</th><th style="padding:8px 10px;">Preço Médio</th></tr>
-        ${entregasLocal.map(r=>`<tr><td class="readonly">${esc(r.local)}</td><td class="readonly">${r.cargas}</td><td class="readonly">${fmt(r.pesoLiq,0)}</td><td class="readonly">${fmt(r.sacasLiqLocal)}</td><td class="readonly">${fmt(r.vendidasLocal)}</td><td class="readonly">${fmt(r.saldo)}</td><td class="readonly">${fmtPct(r.pctVendida)}</td><td class="readonly">${fmtR(r.precoMedioLocal)}</td></tr>`).join('')}
+        <tr>${dashboardTh('dash-entregas','local','Local - Silo')}${dashboardTh('dash-entregas','cargas','Cargas')}${dashboardTh('dash-entregas','pesoLiq','Peso Líq. (kg)')}${dashboardTh('dash-entregas','sacasLiqLocal','Sacas (60kg)')}${dashboardTh('dash-entregas','vendidasLocal','Sacas Vendidas')}${dashboardTh('dash-entregas','saldo','Saldo a Vender')}${dashboardTh('dash-entregas','pctVendida','% Vendida')}${dashboardTh('dash-entregas','precoMedioLocal','Preço Médio')}</tr>
+        ${entregasVisibleRows.map(r=>`<tr><td class="readonly">${esc(r.local)}</td><td class="readonly">${r.cargas}</td><td class="readonly">${fmt(r.pesoLiq,0)}</td><td class="readonly">${fmt(r.sacasLiqLocal)}</td><td class="readonly">${fmt(r.vendidasLocal)}</td><td class="readonly">${fmt(r.saldo)}</td><td class="readonly">${fmtPct(r.pctVendida)}</td><td class="readonly">${fmtR(r.precoMedioLocal)}</td></tr>`).join('')}
         <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${entregasTotais.cargas}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.pesoLiq,0)}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.sacasLiqLocal)}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.vendidasLocal)}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.saldo)}</strong></td><td class="readonly"><strong>${fmtPct(entregasPctVendida)}</strong></td><td class="readonly"><strong>${fmtR(entregasPrecoMedio)}</strong></td></tr>
       </table></div>
     </div>` : ''}
@@ -695,7 +728,23 @@ function toggleFilterMenu(tableKey, colKey, btnEl){
       <button class="secondary" data-act="apply">OK</button>
     </div>
   `;
-  btnEl.closest('th').appendChild(panel);
+  document.body.appendChild(panel);
+  const rect = btnEl.getBoundingClientRect();
+  const panelWidth = Math.min(230, window.innerWidth - 16);
+  panel.style.width = panelWidth + 'px';
+  let left = rect.right - panelWidth;
+  left = Math.max(8, Math.min(left, window.innerWidth - panelWidth - 8));
+  let top = rect.bottom + 6;
+  panel.style.left = left + 'px';
+  panel.style.top = top + 'px';
+  // Se não couber abaixo, abre acima do cabeçalho.
+  requestAnimationFrame(()=>{
+    const ph = panel.offsetHeight;
+    if(top + ph > window.innerHeight - 8){
+      top = Math.max(8, rect.top - ph - 6);
+      panel.style.top = top + 'px';
+    }
+  });
   openFilterPanel = {tableKey,colKey,panel};
 
   panel.querySelector('[data-act="sort-asc"]').addEventListener('click', ()=>{ ts.sortKey=colKey; ts.sortDir=1; render(); });
