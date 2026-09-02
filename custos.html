@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Custos Safra · Fazenda Paraíso</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<style>
+  :root{
+    --bg:#faf8f3; --panel:#ffffff; --ink:#2b2b23; --ink-soft:#6b6b5c; --line:#e4e0d4;
+    --green:#4c6b3f; --green-dark:#38502e; --wheat:#c99a3d; --alert:#b3543f; --focus:#eef3e8;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; font-family:'Segoe UI',Arial,sans-serif; background:var(--bg); color:var(--ink); display:flex; min-height:100vh;}
+  aside{width:230px; background:var(--green-dark); color:#f2efe4; flex-shrink:0; padding:22px 16px; display:flex; flex-direction:column; gap:4px;}
+  aside h1{font-size:16px; margin:0 0 2px; font-weight:600;}
+  aside p.sub{font-size:11px; color:#cdd8c4; margin:0 0 14px;}
+  .safra-select{width:100%; margin-bottom:16px; padding:7px; border-radius:6px; border:1px solid #56714a; background:#3f5934; color:#fff; font-size:12px;}
+  .navbtn{background:none; border:none; color:#e9e5d6; text-align:left; padding:9px 12px; border-radius:8px; cursor:pointer; font-size:13.5px; display:flex; gap:8px; align-items:center;}
+  .navbtn:hover{background:rgba(255,255,255,.08);}
+  .navbtn.active{background:var(--green); color:#fff; font-weight:600;}
+  main{flex:1; padding:28px 36px; overflow-y:auto; max-width:100%;}
+  h2{margin:0 0 4px; font-size:21px;}
+  .caption{color:var(--ink-soft); font-size:13px; margin-bottom:18px;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:18px;}
+  .grid{display:grid; gap:14px;}
+  .grid.cols-2{grid-template-columns:1fr 1fr;}
+  .grid.cols-3{grid-template-columns:1fr 1fr 1fr;}
+  label{font-size:11.5px; color:var(--ink-soft); display:block; margin-bottom:3px;}
+  input, select{width:100%; padding:7px 9px; border:1px solid var(--line); border-radius:6px; font-size:13.5px; background:#fdfcf9;}
+  button.primary{background:var(--green); color:#fff; border:none; padding:8px 16px; border-radius:6px; font-size:13px; cursor:pointer;}
+  button.primary:hover{background:var(--green-dark);}
+  button.secondary{background:#fff; color:var(--green-dark); border:1px solid var(--green); padding:7px 14px; border-radius:6px; font-size:12.5px; cursor:pointer;}
+  button.secondary:hover{background:var(--focus);}
+  button.ghost{background:none; border:1px solid var(--line); padding:4px 9px; border-radius:6px; cursor:pointer; font-size:11.5px; color:var(--alert);}
+  .toolbar{display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
+  .table-wrap{overflow-x:auto; border:1px solid var(--line); border-radius:8px;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px; min-width:1300px;}
+  th, td{text-align:left; padding:0; border-bottom:1px solid var(--line); border-right:1px solid #f0eee4;}
+  thead th{background:#f5f3ea; color:var(--ink); font-weight:600; font-size:11.5px; padding:0; white-space:nowrap; position:relative;}
+  .th-flex{display:flex; align-items:center; justify-content:space-between; gap:6px; padding:8px 6px 8px 10px;}
+  .th-filter-btn{background:none; border:none; cursor:pointer; font-size:11px; color:var(--ink-soft); padding:2px 5px; border-radius:4px;}
+  .th-filter-btn:hover{background:#e9e5d6;}
+  .th-filter-btn.active{color:var(--green-dark); font-weight:700;}
+  tbody td input, tbody td select{border:none; background:transparent; padding:7px 9px; font-size:12.5px; border-radius:0; width:100%; min-width:95px;}
+  tbody td select{min-width:120px;}
+  tbody td input:focus, tbody td select:focus{background:var(--focus); outline:1px solid var(--green);}
+  tbody td.readonly{padding:7px 9px; color:var(--ink-soft); background:#fbfaf6; white-space:nowrap;}
+  .cell-unit{display:flex; align-items:center;}
+  .cell-unit input{flex:1;}
+  .cell-unit span{padding-right:8px; color:var(--ink-soft); font-size:11.5px;}
+  tbody tr:hover{background:#fbfaf6;}
+  .metrics{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:18px;}
+  .metrics.cols-4{grid-template-columns:repeat(4,1fr);}
+  @media (max-width:900px){ .metrics.cols-4{grid-template-columns:repeat(2,1fr);} }
+  .text-red{color:var(--alert) !important; font-weight:700;}
+  .metric{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px;}
+  .metric .val{font-size:19px; font-weight:700; color:var(--green-dark);}
+  .metric .lbl{font-size:11px; color:var(--ink-soft); margin-top:2px;}
+  .empty{color:var(--ink-soft); font-size:13px; font-style:italic; padding:10px 0;}
+  .section-title{font-size:14.5px; font-weight:600; margin:0 0 10px;}
+  .badge{display:inline-block; background:var(--wheat); color:#fff; font-size:10.5px; padding:2px 8px; border-radius:20px; margin-left:6px;}
+  .safra-card{border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;}
+  .safra-card.active{border-color:var(--green); background:var(--focus);}
+  .safra-card h3{margin:0 0 3px; font-size:15px;}
+  .safra-card p{margin:0; font-size:12px; color:var(--ink-soft);}
+  .sync-status{font-size:11px; padding:6px 8px; border-radius:6px; margin-bottom:14px; display:flex; align-items:center; gap:6px;}
+  .sync-status.ok{background:rgba(76,107,63,.25); color:#d7e8cd;}
+  .sync-status.local{background:rgba(201,154,61,.25); color:#f0d9a8;}
+  .sync-status.err{background:rgba(179,84,63,.3); color:#f3c9c1;}
+  /* Filtro estilo Excel */
+  .filter-panel{position:absolute; top:100%; left:0; z-index:50; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.14); width:230px; padding:10px; font-weight:normal;}
+  .fp-sort-row{display:flex; gap:6px; margin-bottom:8px;}
+  .fp-btn{flex:1; background:#f5f3ea; border:1px solid var(--line); border-radius:6px; padding:5px; font-size:11px; cursor:pointer;}
+  .fp-btn:hover{background:#ebe8dc;}
+  .fp-search{width:100%; margin-bottom:6px; font-size:12px; padding:5px 7px;}
+  .fp-list{max-height:160px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; padding:4px 6px; margin-bottom:8px;}
+  .fp-item{display:block; font-size:12px; padding:3px 0; cursor:pointer;}
+  .fp-item input{width:auto; margin-right:6px;}
+  .fp-actions{display:flex; gap:6px; justify-content:flex-end;}
+  @page{ size: A4 landscape; margin: 10mm; }
+  @media print{
+    aside, .no-print, .filter-panel{display:none !important;}
+    main{padding:0;}
+    .panel{border:none; padding:0; margin-bottom:12px;}
+    .table-wrap{border:none; overflow:visible !important;}
+    table{font-size:9px; min-width:0; width:100%; table-layout:auto;}
+    tbody td input, tbody td select{border:none !important; background:transparent !important; padding:2px 3px !important; -webkit-appearance:none;}
+    tr{page-break-inside:avoid;}
+    body{background:#fff;}
+  }
+
+  /* LOGIN FIREBASE */
+  body.auth-pending aside, body.auth-pending main,
+  body.auth-logged-out aside, body.auth-logged-out main{display:none!important;}
+  #loginScreen{display:none; min-height:100vh; width:100%; place-items:center; padding:20px; background:var(--bg);}
+  body.auth-pending #loginScreen, body.auth-logged-out #loginScreen{display:grid;}
+  body.authenticated #loginScreen{display:none;}
+  .login-card{width:min(390px,100%); background:#fff; border:1px solid var(--line); border-radius:12px; padding:26px; box-shadow:0 10px 30px rgba(0,0,0,.08);}
+  .login-card h2{margin:0 0 5px; font-size:22px;}
+  .login-card>p{margin:0 0 20px; color:var(--ink-soft); font-size:13px;}
+  .login-field{margin-bottom:12px;}
+  .login-field label{font-size:12px; font-weight:600;}
+  .login-field input{padding:10px 11px; background:#fff;}
+  .login-submit{width:100%; border:0; border-radius:6px; padding:10px 14px; background:var(--green); color:#fff; cursor:pointer; font-weight:700;}
+  .login-submit:disabled{opacity:.65; cursor:wait;}
+  .login-error{min-height:18px; margin-top:10px; text-align:center; color:var(--alert); font-size:12px;}
+  .side-tool{width:100%; margin-bottom:7px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.18); color:#f2efe4; padding:7px 10px; border-radius:6px; cursor:pointer; text-align:left; font-size:12px;}
+  .side-tool:hover{background:rgba(255,255,255,.12);}
+  .side-tool:disabled{opacity:.45; cursor:not-allowed;}
+  .logout-btn{margin-top:auto;}
+</style>
+</head>
+<body class="auth-pending">
+<div id="loginScreen">
+  <form id="loginForm" class="login-card" autocomplete="on">
+    <h2>🌱 Custos Safra</h2>
+    <p>Fazenda Paraíso · Entre com seu usuário do Firebase.</p>
+    <div class="login-field"><label for="loginEmail">E-mail</label><input id="loginEmail" type="email" autocomplete="username" required></div>
+    <div class="login-field"><label for="loginPassword">Senha</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+    <button id="loginButton" class="login-submit" type="submit">Entrar</button>
+    <div id="loginError" class="login-error" aria-live="polite"></div>
+  </form>
+</div>
+<aside class="no-print">
+  <h1>🌱 Custos Safra</h1>
+  <p class="sub">Fazenda Paraíso</p>
+  <div id="sync-status" class="sync-status local">⚪ Modo local</div>
+  <select class="safra-select" id="safra-selector"></select>
+  <button id="undoBtn" class="side-tool" type="button" onclick="undoLastChange()" disabled>↶ Desfazer (Ctrl+Z)</button>
+  <button class="navbtn active" data-page="dashboard">📊 Dashboard</button>
+  <button class="navbtn" data-page="colheita">🚜 Colheita</button>
+  <button class="navbtn" data-page="adiantamentos">💰 Adiantamentos</button>
+  <button class="navbtn" data-page="vendas">📦 Silos e Vendas</button>
+  <button class="navbtn" data-page="cadastros">⚙️ Cadastros</button>
+  <button class="navbtn" data-page="safras">🌾 Cadastro de Safra</button>
+  <button id="logoutBtn" class="side-tool logout-btn" type="button">Sair</button>
+</aside>
+<main id="main"></main>
+
+<script>
+const PRODUTOR_FIXO = "MARCIO DE REZENDE ANDRADE";
+
+// =================== DADOS INICIAIS (importados da planilha CUSTOS_MILHO_PARAISO 25-26) ===================
+const COLHEITA_MILHO = [
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":17400,"umidade":0.159,"impureza":0.027,"saldoLiquido":16401.24,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23640,"umidade":0.158,"impureza":0.025,"saldoLiquido":22368,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":21780,"umidade":0.163,"impureza":0.021,"saldoLiquido":20521,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":22360,"umidade":0.165,"impureza":0.018,"saldoLiquido":21063,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":21180,"umidade":0.162,"impureza":0.018,"saldoLiquido":20053,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23560,"umidade":0.163,"impureza":0.017,"saldoLiquido":22292,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":22640,"umidade":0.161,"impureza":0.018,"saldoLiquido":21472,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24060,"umidade":0.164,"impureza":0.011,"saldoLiquido":22727,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23900,"umidade":0.156,"impureza":0.016,"saldoLiquido":22906,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":22340,"umidade":0.162,"impureza":0.017,"saldoLiquido":21174,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":22040,"umidade":0.156,"impureza":0.018,"saldoLiquido":21079,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24000,"umidade":0.157,"impureza":0.016,"saldoLiquido":22963,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":22600,"umidade":0.158,"impureza":0.017,"saldoLiquido":21565,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23060,"umidade":0.157,"impureza":0.016,"saldoLiquido":22064,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":22860,"umidade":0.146,"impureza":0.017,"saldoLiquido":22128,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":26300,"umidade":0.138,"impureza":0.017,"saldoLiquido":25853,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24340,"umidade":0.134,"impureza":0.014,"saldoLiquido":23999,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24240,"umidade":0.139,"impureza":0.017,"saldoLiquido":23828,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23620,"umidade":0.134,"impureza":0.016,"saldoLiquido":23242,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23200,"umidade":0.129,"impureza":0.017,"saldoLiquido":22806,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23000,"umidade":0.128,"impureza":0.014,"saldoLiquido":22678,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23660,"umidade":0.131,"impureza":0.014,"saldoLiquido":23329,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23980,"umidade":0.134,"impureza":0.015,"saldoLiquido":23620,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23460,"umidade":0.137,"impureza":0.015,"saldoLiquido":23108,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":22940,"umidade":0.145,"impureza":0.016,"saldoLiquido":22275,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23300,"umidade":0.145,"impureza":0.014,"saldoLiquido":22671,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23400,"umidade":0.135,"impureza":0.015,"saldoLiquido":23049,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23760,"umidade":0.138,"impureza":0.017,"saldoLiquido":23356,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24560,"umidade":0.141,"impureza":0.016,"saldoLiquido":24093,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":21430,"umidade":0.144,"impureza":0.015,"saldoLiquido":20877,"vlSaca":1.3},
+{"data":"2026-07-23","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23640,"umidade":0.142,"impureza":0.017,"saldoLiquido":23101,"vlSaca":1.3},
+{"data":"2026-08-03","talhao":"PALHADA","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":12080,"umidade":0.134,"impureza":0.014,"saldoLiquido":11887,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23240,"umidade":0.134,"impureza":0.017,"saldoLiquido":22845,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24760,"umidade":0.159,"impureza":0.018,"saldoLiquido":22529,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":22680,"umidade":0.149,"impureza":0.017,"saldoLiquido":21845,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23380,"umidade":0.148,"impureza":0.018,"saldoLiquido":23562,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":26820,"umidade":0.147,"impureza":0.016,"saldoLiquido":25940,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24880,"umidade":0.151,"impureza":0.017,"saldoLiquido":23937,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":21460,"umidade":0.152,"impureza":0.015,"saldoLiquido":20675,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":22860,"umidade":0.154,"impureza":0.017,"saldoLiquido":21959,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":25820,"umidade":0.152,"impureza":0.016,"saldoLiquido":24849,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":23160,"umidade":0.155,"impureza":0.019,"saldoLiquido":22164,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":20920,"umidade":0.16,"impureza":0.015,"saldoLiquido":19937,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24740,"umidade":0.164,"impureza":0.018,"saldoLiquido":23345,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24940,"umidade":0.177,"impureza":0.019,"saldoLiquido":22805,"vlSaca":1.3},
+{"data":"2026-08-04","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24120,"umidade":0.177,"impureza":0.018,"saldoLiquido":22079,"vlSaca":1.3},
+{"data":"2026-08-12","talhao":"BASE III","local":"SILO VIZINHO","motorista":"AGENOR","pesoBruto":24200,"umidade":0.18,"impureza":0.019,"saldoLiquido":21998,"vlSaca":1.3}
+];
+const ADIANTAMENTO_MILHO = [
+{"data":"2026-07-23","motorista":"AGENOR","servico":"Borracharia","valor":230},
+{"data":"2026-07-23","motorista":"AGENOR","servico":"Diesel","valor":2744},
+{"data":"2026-07-23","motorista":"AGENOR","servico":"Adiantamento","valor":5000},
+{"data":"2026-07-23","motorista":"AGENOR","servico":"Solda","valor":400}
+];
+const TALHOES_MILHO = [
+  {talhao:"TALHÃO 16", area:72, variedade:"", variedade2:"", plantado:false},
+  {talhao:"TALHÃO 18", area:18, variedade:"", variedade2:"", plantado:false},
+  {talhao:"TALHÃO 19", area:21.31, variedade:"", variedade2:"", plantado:false},
+  {talhao:"LIXÃO", area:28.26, variedade:"", variedade2:"", plantado:false},
+  {talhao:"TALHÃO 21", area:33.89, variedade:"", variedade2:"", plantado:false},
+  {talhao:"ARUANA", area:82.58, variedade:"", variedade2:"", plantado:false},
+  {talhao:"PALHADA", area:104.78, variedade:"BREVANT 2702", variedade2:"", plantado:true},
+  {talhao:"BASE III", area:51, variedade:"NK 165", variedade2:"", plantado:true},
+  {talhao:"CACHOEIRA", area:30.7, variedade:"", variedade2:"", plantado:false},
+  {talhao:"PISTA", area:0, variedade:"", variedade2:"", plantado:false},
+];
+const LOCAIS_MILHO = ["ADM DO BRASIL - CGR","COAMO - SIDROLANDIA","CARGIL - CGR","SILO VIZINHO","LAR"];
+const MOTORISTAS_MILHO = ["ALEXSANDRO","AGENOR"];
+
+// =================== DADOS INICIAIS SOJA 2025/2026 ===================
+// Importados das abas COLHEITA, SILOS E VENDAS e RESUMOS da planilha enviada.
+const COLHEITA_SOJA = [{"data":"2026-02-26","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"WELLINGSON","pesoBruto":38840.0,"umidade":0.17,"impureza":0.003,"saldoLiquido":36820.0,"vlSaca":3.0},{"data":"2026-02-27","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"AGENOR","pesoBruto":47640.0,"umidade":0.148,"impureza":0.002,"saldoLiquido":46792.0,"vlSaca":3.0},{"data":"2026-02-27","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"WELLINGSON","pesoBruto":39700.0,"umidade":0.131,"impureza":0.004,"saldoLiquido":39700.0,"vlSaca":3.0},{"data":"2026-02-28","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"AGENOR","pesoBruto":47080.0,"umidade":0.133,"impureza":0.008,"saldoLiquido":47080.0,"vlSaca":3.0},{"data":"2026-02-28","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"AGENOR","pesoBruto":29660.0,"umidade":0.113,"impureza":0.002,"saldoLiquido":29660.0,"vlSaca":3.0},{"data":"2026-03-01","talhao":"PALHADA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"ALEXSANDRO","pesoBruto":39340.0,"umidade":0.104,"impureza":0.009,"saldoLiquido":39340.0,"vlSaca":3.0},{"data":"2026-03-01","talhao":"PALHADA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":56810.0,"umidade":0.106,"impureza":0.005,"saldoLiquido":56526.0,"vlSaca":3.6},{"data":"2026-03-01","talhao":"PALHADA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38930.0,"umidade":0.111,"impureza":0.01,"saldoLiquido":38541.0,"vlSaca":3.6},{"data":"2026-03-04","talhao":"PALHADA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38900.0,"umidade":0.08,"impureza":0.005,"saldoLiquido":38705.0,"vlSaca":3.6},{"data":"2026-03-04","talhao":"PALHADA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":39900.0,"umidade":0.085,"impureza":0.01,"saldoLiquido":39501.0,"vlSaca":3.6},{"data":"2026-03-04","talhao":"CACHOEIRA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38910.0,"umidade":0.099,"impureza":0.01,"saldoLiquido":38521.0,"vlSaca":3.6},{"data":"2026-03-04","talhao":"CACHOEIRA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":30330.0,"umidade":0.083,"impureza":0.01,"saldoLiquido":30027.0,"vlSaca":3.6},{"data":"2026-03-05","talhao":"CACHOEIRA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":30740.0,"umidade":0.082,"impureza":0.04,"saldoLiquido":29510.0,"vlSaca":3.6},{"data":"2026-03-05","talhao":"CACHOEIRA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":18295.0,"umidade":0.117,"impureza":0.066,"saldoLiquido":17087.5,"vlSaca":3.6},{"data":"2026-03-05","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":18295.0,"umidade":0.117,"impureza":0.066,"saldoLiquido":17087.5,"vlSaca":3.6},{"data":"2026-03-06","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":31570.0,"umidade":0.097,"impureza":0.037,"saldoLiquido":30402.0,"vlSaca":3.6},{"data":"2026-03-06","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":53960.0,"umidade":0.105,"impureza":0.012,"saldoLiquido":53312.0,"vlSaca":3.6},{"data":"2026-03-06","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38860.0,"umidade":0.114,"impureza":0.026,"saldoLiquido":37850.0,"vlSaca":3.6},{"data":"2026-03-07","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":37130.0,"umidade":0.14,"impureza":0.015,"saldoLiquido":36573.0,"vlSaca":3.6},{"data":"2026-03-07","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38960.0,"umidade":0.15,"impureza":0.007,"saldoLiquido":37817.0,"vlSaca":3.6},{"data":"2026-03-07","talhao":"BASE III","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":54710.0,"umidade":0.136,"impureza":0.016,"saldoLiquido":53835.0,"vlSaca":3.6},{"data":"2026-03-10","talhao":"ARUANA","variedade":"","local":"ADM DO BRASIL - CGR","motorista":"AGENOR","pesoBruto":16560.0,"umidade":0.15,"impureza":0.005,"saldoLiquido":16195.0,"vlSaca":3.0},{"data":"2026-03-13","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":40040.0,"umidade":0.162,"impureza":0.011,"saldoLiquido":37996.0,"vlSaca":3.6},{"data":"2026-03-13","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":55310.0,"umidade":0.155,"impureza":0.008,"saldoLiquido":53222.0,"vlSaca":3.6},{"data":"2026-03-14","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38940.0,"umidade":0.164,"impureza":0.018,"saldoLiquido":36576.0,"vlSaca":3.6},{"data":"2026-03-14","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":32150.0,"umidade":0.141,"impureza":0.01,"saldoLiquido":31303.0,"vlSaca":3.6},{"data":"2026-03-14","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":56180.0,"umidade":0.137,"impureza":0.009,"saldoLiquido":55674.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38520.0,"umidade":0.133,"impureza":0.009,"saldoLiquido":38173.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"ARUANA","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":30860.0,"umidade":0.128,"impureza":0.011,"saldoLiquido":30521.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38710.0,"umidade":0.145,"impureza":0.012,"saldoLiquido":37671.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":56570.0,"umidade":0.129,"impureza":0.014,"saldoLiquido":55778.0,"vlSaca":3.6},{"data":"2026-03-15","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38950.0,"umidade":0.12,"impureza":0.01,"saldoLiquido":38560.0,"vlSaca":3.6},{"data":"2026-03-16","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":39950.0,"umidade":0.119,"impureza":0.019,"saldoLiquido":38838.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":55170.0,"umidade":0.143,"impureza":0.007,"saldoLiquido":54291.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":38250.0,"umidade":0.16,"impureza":0.007,"saldoLiquido":36558.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":39630.0,"umidade":0.157,"impureza":0.01,"saldoLiquido":37939.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":31090.0,"umidade":0.157,"impureza":0.007,"saldoLiquido":29853.0,"vlSaca":3.6},{"data":"2026-03-17","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":12000.0,"umidade":0.159,"impureza":0.009,"saldoLiquido":12000.0,"vlSaca":3.6},{"data":"2026-03-18","talhao":"TALHÃO 21","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":44350.0,"umidade":0.159,"impureza":0.009,"saldoLiquido":41833.0,"vlSaca":3.6},{"data":"2026-03-18","talhao":"TALHÃO 21","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":39210.0,"umidade":0.149,"impureza":0.01,"saldoLiquido":38003.0,"vlSaca":3.6},{"data":"2026-03-19","talhao":"TALHÃO 21","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":31580.0,"umidade":0.159,"impureza":0.012,"saldoLiquido":30078.0,"vlSaca":3.6},{"data":"2026-03-19","talhao":"TALHÃO 21","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":27060.0,"umidade":0.176,"impureza":0.016,"saldoLiquido":24071.0,"vlSaca":3.6},{"data":"2026-03-19","talhao":"TALHÃO 18","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":12000.0,"umidade":0.176,"impureza":0.016,"saldoLiquido":12000.0,"vlSaca":3.6},{"data":"2026-03-19","talhao":"TALHÃO 18","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":55870.0,"umidade":0.153,"impureza":0.019,"saldoLiquido":53328.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"TALHÃO 18","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":4800.0,"umidade":0.199,"impureza":0.026,"saldoLiquido":4800.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"TALHÃO 16","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":4800.0,"umidade":0.199,"impureza":0.026,"saldoLiquido":4800.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"TALHÃO 19","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"WELLINGSON","pesoBruto":27150.0,"umidade":0.199,"impureza":0.026,"saldoLiquido":22758.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"LIXÃO","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALEXSANDRO","pesoBruto":38540.0,"umidade":0.173,"impureza":0.012,"saldoLiquido":35908.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"LIXÃO","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":54260.0,"umidade":0.168,"impureza":0.01,"saldoLiquido":51058.0,"vlSaca":3.6},{"data":"2026-03-20","talhao":"LIXÃO","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"AGENOR","pesoBruto":31760.0,"umidade":0.144,"impureza":0.008,"saldoLiquido":31128.0,"vlSaca":3.6},{"data":"2026-03-21","talhao":"TALHÃO 19","variedade":"","local":"COAMO - SIDROLANDIA","motorista":"ALESSANDRO","pesoBruto":51740.0,"umidade":0.189,"impureza":0.018,"saldoLiquido":46693.0,"vlSaca":3.6}];
+const TALHOES_SOJA = [{"talhao":"TALHÃO 16","area":72.0,"variedade":"","variedade2":"","plantado":true},{"talhao":"TALHÃO 18","area":18.0,"variedade":"","variedade2":"","plantado":true},{"talhao":"TALHÃO 19","area":21.31,"variedade":"","variedade2":"","plantado":true},{"talhao":"LIXÃO","area":28.26,"variedade":"","variedade2":"","plantado":true},{"talhao":"TALHÃO 21","area":33.89,"variedade":"","variedade2":"","plantado":true},{"talhao":"ARUANA","area":82.58,"variedade":"","variedade2":"","plantado":true},{"talhao":"PALHADA","area":104.78,"variedade":"","variedade2":"","plantado":true},{"talhao":"BASE III","area":63.32,"variedade":"","variedade2":"","plantado":true},{"talhao":"CACHOEIRA","area":30.7,"variedade":"","variedade2":"","plantado":true},{"talhao":"FAZENDA","area":0.0,"variedade":"","variedade2":"","plantado":false}];
+const LOCAIS_SOJA = ["ADM DO BRASIL - CGR","COAMO - SIDROLANDIA","CARGIL - CGR","SILO VIZINHO","LAR"];
+const MOTORISTAS_SOJA = ["WELLINGSON","AGENOR","ALEXSANDRO","ALESSANDRO"];
+const VENDAS_SOJA = [];
+
+function criarSafraSoja2526Importada(){
+  return {
+    nome: "Soja 2025/2026", cultura: "Soja",
+    produtor: PRODUTOR_FIXO, propriedade: "FAZENDA PARAÍSO",
+    talhoes: JSON.parse(JSON.stringify(TALHOES_SOJA)),
+    locais: [...LOCAIS_SOJA],
+    motoristas: [...MOTORISTAS_SOJA],
+    colheita: JSON.parse(JSON.stringify(COLHEITA_SOJA)),
+    adiantamentos: [],
+    vendas: JSON.parse(JSON.stringify(VENDAS_SOJA)),
+  };
+}
+
+
+// =================== VARIEDADES POR TALHÃO ===================
+function variedadesDoTalhao(safra, talhao){
+  const t = (safra.talhoes || []).find(x=>x.talhao===talhao);
+  if(!t) return [];
+  return [t.variedade, t.variedade2].map(v=>String(v||'').trim()).filter((v,i,a)=>v && a.indexOf(v)===i);
+}
+
+function normalizarEstruturaSafras(safras){
+  Object.entries(safras || {}).forEach(([chave,s])=>{
+    s.talhoes = Array.isArray(s.talhoes) ? s.talhoes : [];
+    s.colheita = Array.isArray(s.colheita) ? s.colheita : [];
+    s.talhoes.forEach(t=>{
+      if(t.variedade===undefined || t.variedade===null) t.variedade='';
+      if(t.variedade2===undefined || t.variedade2===null) t.variedade2='';
+    });
+    if(chave==='milho2526' || String(s.cultura||'').toLowerCase()==='milho'){
+      s.colheita.forEach(c=>{
+        if(!String(c.variedade||'').trim()){
+          const vars = variedadesDoTalhao(s, c.talhao);
+          if(vars.length) c.variedade = vars[0];
+        }
+      });
+    }
+  });
+  return safras;
+}
+
+// =================== ESTADO GLOBAL ===================
+let state = {
+  safraAtual: "milho2526",
+  safras: {
+    milho2526: {
+      nome: "Milho 2025/2026", cultura: "Milho",
+      produtor: PRODUTOR_FIXO, propriedade: "FAZENDA PARAÍSO",
+      talhoes: JSON.parse(JSON.stringify(TALHOES_MILHO)),
+      locais: [...LOCAIS_MILHO],
+      motoristas: [...MOTORISTAS_MILHO],
+      colheita: JSON.parse(JSON.stringify(COLHEITA_MILHO)),
+      adiantamentos: JSON.parse(JSON.stringify(ADIANTAMENTO_MILHO)),
+      vendas: [],
+    },
+    soja2526: criarSafraSoja2526Importada()
+  }
+};
+let currentPage = "dashboard";
+normalizarEstruturaSafras(state.safras);
+function S(){ return state.safras[state.safraAtual]; }
+
+// =================== SINCRONIZAÇÃO EM NUVEM (Firebase Firestore) ===================
+// Preencha com os dados do SEU projeto Firebase (veja o passo a passo que te enviei).
+// Enquanto estiver com o valor de exemplo, o app roda só localmente (sem compartilhar dados).
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCYPs8ajyzKOTAyKzh4vj2ziS1nIWZlTck",
+  authDomain: "custos-safra-paraiso.firebaseapp.com",
+  projectId: "custos-safra-paraiso",
+  storageBucket: "custos-safra-paraiso.firebasestorage.app",
+  messagingSenderId: "903027155592",
+  appId: "1:903027155592:web:3b51f655c51da43c55f53d",
+};
+const FIREBASE_CONFIGURADO = FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== "COLOQUE_AQUI";
+
+let db = null, docRef = null, firebaseReady = false, suppressSave = false, saveTimer = null;
+let unsubscribeSnapshot = null;
+
+// =================== DESFAZER GERAL ===================
+const UNDO_LIMIT = 50;
+let undoStack = [];
+function cloneStateForUndo(){ return JSON.parse(JSON.stringify(state)); }
+function updateUndoButton(){
+  const b = document.getElementById('undoBtn');
+  if(b) b.disabled = undoStack.length===0;
+}
+function recordUndo(){
+  undoStack.push(cloneStateForUndo());
+  if(undoStack.length>UNDO_LIMIT) undoStack.shift();
+  updateUndoButton();
+}
+function clearUndoHistory(){ undoStack = []; updateUndoButton(); }
+function undoLastChange(){
+  if(!undoStack.length) return;
+  clearTimeout(saveTimer);
+  const previous = undoStack.pop();
+  state = previous;
+  normalizarEstruturaSafras(state.safras);
+  render();
+  updateUndoButton();
+  scheduleSave(true);
+}
+
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z' && document.body.classList.contains('authenticated')){
+    e.preventDefault();
+    undoLastChange();
+  }
+});
+
+function setSyncStatus(text, cls){
+  const el = document.getElementById('sync-status');
+  if(el){ el.textContent = text; el.className = 'sync-status no-print ' + cls; }
+}
+
+function initFirebase(){
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+    docRef = db.collection('custos-safra').doc('estado-atual');
+    setSyncStatus('🟡 Conectando...', 'local');
+
+    docRef.get().then(snap=>{
+      if(snap.exists && snap.data().safras){
+        suppressSave = true;
+        state.safras = normalizarEstruturaSafras(snap.data().safras);
+        clearUndoHistory();
+        let adicionouSojaImportada = false;
+        if(!state.safras.soja2526){
+          state.safras.soja2526 = criarSafraSoja2526Importada();
+          adicionouSojaImportada = true;
+        }
+        if(!state.safras[state.safraAtual]) state.safraAtual = Object.keys(state.safras)[0];
+        render();
+        suppressSave = false;
+        if(adicionouSojaImportada){
+          docRef.set({safras: JSON.parse(JSON.stringify(state.safras))});
+        }
+      } else {
+        // primeira vez: manda os dados iniciais (milho) pro banco
+        docRef.set({safras: JSON.parse(JSON.stringify(state.safras))});
+      }
+      firebaseReady = true;
+      setSyncStatus('🟢 Sincronizado', 'ok');
+
+      if(unsubscribeSnapshot) unsubscribeSnapshot();
+      unsubscribeSnapshot = docRef.onSnapshot(snap=>{
+        if(!snap.exists) return;
+        const remote = snap.data().safras;
+        if(!remote) return;
+        if(JSON.stringify(remote) === JSON.stringify(state.safras)) return; // eco da própria escrita
+        suppressSave = true;
+        state.safras = normalizarEstruturaSafras(remote);
+        clearUndoHistory();
+        if(!state.safras[state.safraAtual]) state.safraAtual = Object.keys(state.safras)[0];
+        render();
+        suppressSave = false;
+        setSyncStatus('🟢 Sincronizado', 'ok');
+      }, err=>{ console.error(err); setSyncStatus('🔴 Sem conexão', 'err'); });
+    }).catch(err=>{ console.error(err); setSyncStatus('🔴 Erro ao conectar', 'err'); });
+  }catch(err){
+    console.error(err);
+    setSyncStatus('🔴 Erro na configuração', 'err');
+  }
+}
+function scheduleSave(immediate=false){
+  if(!firebaseReady || suppressSave || !docRef) return;
+  setSyncStatus('🟡 Salvando...', 'local');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    docRef.set({safras: JSON.parse(JSON.stringify(state.safras))})
+      .then(()=> setSyncStatus('🟢 Sincronizado', 'ok'))
+      .catch(err=>{ console.error(err); setSyncStatus('🔴 Erro ao salvar', 'err'); });
+  }, immediate ? 0 : 600);
+}
+
+function fmt(n, dec=2){ return Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:dec, maximumFractionDigits:dec}); }
+function fmtR(n){ return "R$ " + fmt(n,2); }
+function fmtPct(n){ return fmt((n||0)*100,1) + "%"; }
+function esc(v){ return (v===undefined||v===null) ? "" : String(v).replace(/"/g,"&quot;"); }
+function pctToFraction(percentVal){ const p = Number(percentVal)||0; return Math.round(p*100)/10000; }
+function fractionToPercentDisplay(frac){ return Math.round((frac||0)*10000)/100; }
+
+// tabela: filtros (estilo excel) + ordenação
+let tableState = {};
+let tableRegistry = {};
+let openFilterPanel = null;
+
+// =================== NAVEGAÇÃO ===================
+function setPage(p){ currentPage = p; document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.page===p)); render(); }
+document.querySelectorAll('.navbtn').forEach(b=>b.addEventListener('click', ()=>setPage(b.dataset.page)));
+
+function refreshSafraSelector(){
+  const sel = document.getElementById('safra-selector');
+  sel.innerHTML = Object.keys(state.safras).map(k=>`<option value="${k}" ${k===state.safraAtual?'selected':''}>${esc(state.safras[k].nome)}</option>`).join('');
+}
+document.getElementById('safra-selector').addEventListener('change', e=>{ state.safraAtual = e.target.value; render(); });
+
+function render(){
+  closeFilterMenu();
+  refreshSafraSelector();
+  const main = document.getElementById('main');
+  if(currentPage==="dashboard") main.innerHTML = pageDashboard();
+  else if(currentPage==="colheita") main.innerHTML = pageColheita();
+  else if(currentPage==="adiantamentos") main.innerHTML = pageAdiantamentos();
+  else if(currentPage==="vendas") main.innerHTML = pageVendas();
+  else if(currentPage==="cadastros") main.innerHTML = pageCadastros();
+  else if(currentPage==="safras") main.innerHTML = pageSafras();
+  bindStaticEvents();
+  scheduleSave();
+}
+
+// =================== DERIVED ===================
+function colheitaDerived(r){
+  const sacasBrutas = (r.pesoBruto||0)/60;
+  const totalFrete = sacasBrutas*(r.vlSaca||0);
+  const sacasLiquidas = (r.saldoLiquido||0)/60;
+  const pctDesconto = r.pesoBruto ? (r.pesoBruto-r.saldoLiquido)/r.pesoBruto : 0;
+  return {sacasBrutas, totalFrete, sacasLiquidas, pctDesconto};
+}
+function vendaDerived(r){
+  const sacasVendidas = (r.pesoVendido||0)/60;
+  const totalVenda = sacasVendidas*(r.vlSaca||0);
+  return {sacasVendidas, totalVenda};
+}
+
+// =================== DASHBOARD ===================
+function pageDashboard(){
+  const s = S();
+  const areaTotal = s.talhoes.filter(t=>t.plantado).reduce((sum,t)=>sum+Number(t.area||0),0);
+  const pesoBruto = s.colheita.reduce((sum,c)=>sum+Number(c.pesoBruto||0),0);
+  const pesoLiquido = s.colheita.reduce((sum,c)=>sum+Number(c.saldoLiquido||0),0);
+  const sacasLiq = s.colheita.reduce((sum,c)=>sum+colheitaDerived(c).sacasLiquidas,0);
+  const scHa = areaTotal ? sacasLiq/areaTotal : 0;
+  const pctDescontoMedio = pesoBruto ? (pesoBruto-pesoLiquido)/pesoBruto : 0;
+  const umidadeMedia = s.colheita.length ? s.colheita.reduce((sum,c)=>sum+Number(c.umidade||0),0)/s.colheita.length : 0;
+  const sacasPerdidas = (pesoBruto-pesoLiquido)/60;
+  const vendidoTotal = s.vendas.reduce((sum,v)=>sum+vendaDerived(v).sacasVendidas,0);
+  const saldoVender = sacasLiq - vendidoTotal;
+  const pctJaVendido = sacasLiq ? vendidoTotal/sacasLiq : 0;
+  const faturamento = s.vendas.reduce((sum,v)=>sum+vendaDerived(v).totalVenda,0);
+  const precoMedio = vendidoTotal ? faturamento/vendidoTotal : 0;
+
+  const porTalhao = {};
+  s.colheita.forEach(c=>{
+    if(!porTalhao[c.talhao]) porTalhao[c.talhao]={sacas:0, cargas:0, pesoBruto:0, pesoLiquido:0, umidadeSum:0};
+    const d = colheitaDerived(c);
+    porTalhao[c.talhao].sacas += d.sacasLiquidas;
+    porTalhao[c.talhao].cargas += 1;
+    porTalhao[c.talhao].pesoBruto += Number(c.pesoBruto||0);
+    porTalhao[c.talhao].pesoLiquido += Number(c.saldoLiquido||0);
+    porTalhao[c.talhao].umidadeSum += Number(c.umidade||0);
+  });
+  const talhaoRows = Object.keys(porTalhao).map(t=>{
+    const areaT = (s.talhoes.find(x=>x.talhao===t)||{}).area || 0;
+    const p = porTalhao[t];
+    return {
+      talhao:t, area:areaT, cargas:p.cargas, sacas:p.sacas, scha: areaT? p.sacas/areaT : 0,
+      sacasPerdidas: (p.pesoBruto-p.pesoLiquido)/60, umidadeMed: p.cargas? p.umidadeSum/p.cargas : 0,
+    };
+  });
+  const maxSacas = Math.max(1, ...talhaoRows.map(r=>r.sacas));
+  const talhaoTotais = talhaoRows.reduce((acc,r)=>({
+    area:acc.area+Number(r.area||0), cargas:acc.cargas+Number(r.cargas||0), sacas:acc.sacas+Number(r.sacas||0),
+    sacasPerdidas:acc.sacasPerdidas+Number(r.sacasPerdidas||0)
+  }),{area:0,cargas:0,sacas:0,sacasPerdidas:0});
+  const talhaoScHa = talhaoTotais.area ? talhaoTotais.sacas/talhaoTotais.area : 0;
+  const talhaoUmidadeMedia = s.colheita.length ? s.colheita.reduce((sum,c)=>sum+Number(c.umidade||0),0)/s.colheita.length : 0;
+
+  const porVariedade = {};
+  s.colheita.forEach(c=>{
+    const variedade = String(c.variedade||'').trim();
+    if(!variedade) return;
+    if(!porVariedade[variedade]) porVariedade[variedade]={sacas:0,pesoBruto:0,pesoLiquido:0,umidadeSum:0,cargas:0,talhoes:new Set()};
+    const d = colheitaDerived(c);
+    const p = porVariedade[variedade];
+    p.sacas += d.sacasLiquidas;
+    p.pesoBruto += Number(c.pesoBruto||0);
+    p.pesoLiquido += Number(c.saldoLiquido||0);
+    p.umidadeSum += Number(c.umidade||0);
+    p.cargas += 1;
+    if(c.talhao) p.talhoes.add(c.talhao);
+  });
+  const variedadeRows = Object.entries(porVariedade).map(([variedade,p])=>{
+    const area = s.talhoes
+      .filter(t=>p.talhoes.has(t.talhao) && [t.variedade,t.variedade2].map(x=>String(x||'').trim()).includes(variedade))
+      .reduce((sum,t)=>sum+Number(t.area||0),0);
+    return {
+      variedade, area, sacas:p.sacas, scha:area?p.sacas/area:0,
+      sacasPerdidas:(p.pesoBruto-p.pesoLiquido)/60,
+      umidadeMed:p.cargas?p.umidadeSum/p.cargas:0
+    };
+  }).sort((a,b)=>a.variedade.localeCompare(b.variedade,'pt-BR'));
+  const variedadeTotais = variedadeRows.reduce((acc,r)=>({area:acc.area+r.area,sacas:acc.sacas+r.sacas,sacasPerdidas:acc.sacasPerdidas+r.sacasPerdidas}),{area:0,sacas:0,sacasPerdidas:0});
+  const variedadeScHa = variedadeTotais.area ? variedadeTotais.sacas/variedadeTotais.area : 0;
+  const cargasComVariedade = s.colheita.filter(c=>String(c.variedade||'').trim());
+  const variedadeUmidadeMedia = cargasComVariedade.length ? cargasComVariedade.reduce((sum,c)=>sum+Number(c.umidade||0),0)/cargasComVariedade.length : 0;
+
+  const freteMotorista = s.motoristas.map(mot=>{
+    const cargas = s.colheita.filter(c=>c.motorista===mot);
+    const totalFrete = cargas.reduce((sum,c)=>sum+colheitaDerived(c).totalFrete,0);
+    const adiantado = s.adiantamentos.filter(a=>a.motorista===mot).reduce((sum,a)=>sum+Number(a.valor||0),0);
+    return {mot, cargas: cargas.length, totalFrete, adiantado, aPagar: totalFrete-adiantado};
+  }).filter(r=>r.cargas>0 || r.adiantado>0);
+  const freteTotais = freteMotorista.reduce((acc,r)=>({
+    cargas:acc.cargas+Number(r.cargas||0), totalFrete:acc.totalFrete+Number(r.totalFrete||0),
+    adiantado:acc.adiantado+Number(r.adiantado||0), aPagar:acc.aPagar+Number(r.aPagar||0)
+  }),{cargas:0,totalFrete:0,adiantado:0,aPagar:0});
+
+  const entregasLocal = s.locais.map(local=>{
+    const cargasLocal = s.colheita.filter(c=>c.local===local);
+    const pesoLiq = cargasLocal.reduce((sum,c)=>sum+Number(c.saldoLiquido||0),0);
+    const sacasLiqLocal = cargasLocal.reduce((sum,c)=>sum+colheitaDerived(c).sacasLiquidas,0);
+    const vendidasLocal = s.vendas.filter(v=>v.local===local).reduce((sum,v)=>sum+vendaDerived(v).sacasVendidas,0);
+    const fatLocal = s.vendas.filter(v=>v.local===local).reduce((sum,v)=>sum+vendaDerived(v).totalVenda,0);
+    return {
+      local, cargas: cargasLocal.length, pesoLiq, sacasLiqLocal, vendidasLocal,
+      saldo: sacasLiqLocal-vendidasLocal, pctVendida: sacasLiqLocal? vendidasLocal/sacasLiqLocal : 0,
+      precoMedioLocal: vendidasLocal? fatLocal/vendidasLocal : 0,
+    };
+  }).filter(r=>r.cargas>0 || r.vendidasLocal>0);
+  const entregasTotais = entregasLocal.reduce((acc,r)=>({
+    cargas:acc.cargas+Number(r.cargas||0), pesoLiq:acc.pesoLiq+Number(r.pesoLiq||0),
+    sacasLiqLocal:acc.sacasLiqLocal+Number(r.sacasLiqLocal||0), vendidasLocal:acc.vendidasLocal+Number(r.vendidasLocal||0),
+    saldo:acc.saldo+Number(r.saldo||0)
+  }),{cargas:0,pesoLiq:0,sacasLiqLocal:0,vendidasLocal:0,saldo:0});
+  const entregasPctVendida = entregasTotais.sacasLiqLocal ? entregasTotais.vendidasLocal/entregasTotais.sacasLiqLocal : 0;
+  const entregasPrecoMedio = entregasTotais.vendidasLocal ? faturamento/entregasTotais.vendidasLocal : 0;
+
+  return `
+    <div class="toolbar no-print" style="justify-content:flex-end;">
+      <button class="secondary" onclick="window.print()">🖨️ Imprimir</button>
+      <button class="secondary" onclick="exportSafraCompleta()">⬇️ Exportar safra (Excel)</button>
+    </div>
+    <h2>📊 Dashboard</h2>
+    <div class="caption">${esc(s.propriedade)} · Safra ${esc(s.nome)} <span class="badge">${esc(s.cultura)}</span></div>
+
+    <p class="section-title">Indicadores da safra</p>
+    <div class="metrics cols-4">
+      <div class="metric"><div class="val">${fmt(areaTotal)}</div><div class="lbl">Área plantada (ha)</div></div>
+      <div class="metric"><div class="val">${fmt(pesoBruto,0)}</div><div class="lbl">Peso bruto (kg)</div></div>
+      <div class="metric"><div class="val">${fmt(pesoLiquido,0)}</div><div class="lbl">Peso líquido (kg)</div></div>
+      <div class="metric"><div class="val">${fmt(sacasLiq)}</div><div class="lbl">Sacas líquidas (60kg)</div></div>
+      <div class="metric"><div class="val">${fmt(scHa)}</div><div class="lbl">Sc / ha</div></div>
+      <div class="metric"><div class="val">${fmtPct(pctDescontoMedio)}</div><div class="lbl">% desconto médio</div></div>
+      <div class="metric"><div class="val">${fmtPct(umidadeMedia)}</div><div class="lbl">Umidade média</div></div>
+      <div class="metric"><div class="val text-red">${fmt(sacasPerdidas)}</div><div class="lbl">Sacas perdidas</div></div>
+      <div class="metric"><div class="val">${fmt(saldoVender)}</div><div class="lbl">Saldo a vender (sc)</div></div>
+      <div class="metric"><div class="val">${fmtPct(pctJaVendido)}</div><div class="lbl">% já vendido</div></div>
+      <div class="metric"><div class="val">${fmtR(precoMedio)}</div><div class="lbl">Preço médio (R$/sc)</div></div>
+      <div class="metric"><div class="val">${fmtR(faturamento)}</div><div class="lbl">Faturamento (R$)</div></div>
+    </div>
+
+    <div class="panel">
+      <p class="section-title">Produção por talhão</p>
+      ${talhaoRows.length ? `
+        <div class="table-wrap"><table style="min-width:900px;">
+          <tr><th style="padding:8px 10px;">Talhão</th><th style="padding:8px 10px;">Área (ha)</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Sacas líq.</th><th style="padding:8px 10px;">Sc/ha</th><th style="padding:8px 10px;">Sacas perdidas</th><th style="padding:8px 10px;">Umidade méd.</th><th style="padding:8px 10px;"></th></tr>
+          ${talhaoRows.map(r=>`<tr>
+            <td class="readonly">${esc(r.talhao)}</td><td class="readonly">${fmt(r.area)}</td><td class="readonly">${r.cargas}</td>
+            <td class="readonly">${fmt(r.sacas)}</td><td class="readonly">${fmt(r.scha)}</td><td class="readonly text-red">${fmt(r.sacasPerdidas)}</td><td class="readonly">${fmtPct(r.umidadeMed)}</td>
+            <td class="readonly" style="width:180px;"><div style="background:var(--wheat); height:10px; border-radius:4px; width:${(r.sacas/maxSacas*100).toFixed(0)}%;"></div></td>
+          </tr>`).join('')}
+          <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${fmt(talhaoTotais.area)}</strong></td><td class="readonly"><strong>${talhaoTotais.cargas}</strong></td><td class="readonly"><strong>${fmt(talhaoTotais.sacas)}</strong></td><td class="readonly"><strong>${fmt(talhaoScHa,1)}</strong></td><td class="readonly text-red"><strong>${fmt(talhaoTotais.sacasPerdidas,1)}</strong></td><td class="readonly"><strong>${fmtPct(talhaoUmidadeMedia)}</strong></td><td class="readonly"></td></tr>
+        </table></div>
+      ` : `<div class="empty">Lance colheitas para ver a produção por talhão.</div>`}
+    </div>
+
+    <div class="panel">
+      <p class="section-title">Produção por variedade</p>
+      ${variedadeRows.length ? `
+        <div class="table-wrap"><table style="min-width:760px;">
+          <tr><th style="padding:8px 10px;">Variedade</th><th style="padding:8px 10px;">Área (ha)</th><th style="padding:8px 10px;">Sacas líq.</th><th style="padding:8px 10px;">Sc / ha</th><th style="padding:8px 10px; color:var(--alert);">Sacas perdidas</th><th style="padding:8px 10px;">Umidade méd.</th></tr>
+          ${variedadeRows.map(r=>`<tr><td class="readonly">${esc(r.variedade)}</td><td class="readonly">${fmt(r.area)}</td><td class="readonly">${fmt(r.sacas)}</td><td class="readonly"><strong>${fmt(r.scha,1)}</strong></td><td class="readonly text-red">${fmt(r.sacasPerdidas,1)}</td><td class="readonly"><strong>${fmtPct(r.umidadeMed)}</strong></td></tr>`).join('')}
+          <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${fmt(variedadeTotais.area)}</strong></td><td class="readonly"><strong>${fmt(variedadeTotais.sacas)}</strong></td><td class="readonly"><strong>${fmt(variedadeScHa,1)}</strong></td><td class="readonly text-red"><strong>${fmt(variedadeTotais.sacasPerdidas,1)}</strong></td><td class="readonly"><strong>${fmtPct(variedadeUmidadeMedia)}</strong></td></tr>
+        </table></div>
+      ` : `<div class="empty">Cadastre a variedade nos talhões e/ou na colheita para ver a produção por variedade.</div>`}
+    </div>
+
+    ${freteMotorista.length ? `
+    <div class="panel">
+      <p class="section-title">Frete por motorista</p>
+      <div class="table-wrap"><table style="min-width:700px;">
+        <tr><th style="padding:8px 10px;">Motorista</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Total Frete</th><th style="padding:8px 10px;">Adiantado</th><th style="padding:8px 10px;">A Pagar</th></tr>
+        ${freteMotorista.map(r=>`<tr><td class="readonly">${esc(r.mot)}</td><td class="readonly">${r.cargas}</td><td class="readonly">${fmtR(r.totalFrete)}</td><td class="readonly">${fmtR(r.adiantado)}</td><td class="readonly text-red">${fmtR(r.aPagar)}</td></tr>`).join('')}
+        <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${freteTotais.cargas}</strong></td><td class="readonly"><strong>${fmtR(freteTotais.totalFrete)}</strong></td><td class="readonly"><strong>${fmtR(freteTotais.adiantado)}</strong></td><td class="readonly text-red"><strong>${fmtR(freteTotais.aPagar)}</strong></td></tr>
+      </table></div>
+    </div>` : ''}
+
+    ${entregasLocal.length ? `
+    <div class="panel">
+      <p class="section-title">Entregas e vendas por local</p>
+      <div class="table-wrap"><table style="min-width:900px;">
+        <tr><th style="padding:8px 10px;">Local - Silo</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Peso Líq. (kg)</th><th style="padding:8px 10px;">Sacas (60kg)</th><th style="padding:8px 10px;">Sacas Vendidas</th><th style="padding:8px 10px;">Saldo a Vender</th><th style="padding:8px 10px;">% Vendida</th><th style="padding:8px 10px;">Preço Médio</th></tr>
+        ${entregasLocal.map(r=>`<tr><td class="readonly">${esc(r.local)}</td><td class="readonly">${r.cargas}</td><td class="readonly">${fmt(r.pesoLiq,0)}</td><td class="readonly">${fmt(r.sacasLiqLocal)}</td><td class="readonly">${fmt(r.vendidasLocal)}</td><td class="readonly">${fmt(r.saldo)}</td><td class="readonly">${fmtPct(r.pctVendida)}</td><td class="readonly">${fmtR(r.precoMedioLocal)}</td></tr>`).join('')}
+        <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly"><strong>${entregasTotais.cargas}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.pesoLiq,0)}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.sacasLiqLocal)}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.vendidasLocal)}</strong></td><td class="readonly"><strong>${fmt(entregasTotais.saldo)}</strong></td><td class="readonly"><strong>${fmtPct(entregasPctVendida)}</strong></td><td class="readonly"><strong>${fmtR(entregasPrecoMedio)}</strong></td></tr>
+      </table></div>
+    </div>` : ''}
+  `;
+}
+
+// =================== FILTRO ESTILO EXCEL ===================
+function displayValueForFilter(cfg, row, key){
+  const col = cfg.columns.find(c=>c.key===key);
+  let v = col.derived ? cfg.computeDerived(row)[key] : row[key];
+  if(col.type==='pct') v = fmtPct(v);
+  else if(col.type==='money') v = fmtR(v);
+  else if(col.type==='pctinput') v = fmtPct(v);
+  else if(col.type==='date') v = v || '';
+  else if(v===undefined||v===null||v==='') v = '(vazio)';
+  return String(v);
+}
+function getFilteredRows(cfg, excludeKey){
+  let rows = cfg.rows.slice();
+  const ts = tableState[cfg.tableKey];
+  Object.entries(ts.colFilters||{}).forEach(([key,set])=>{
+    if(key===excludeKey || !set) return;
+    rows = rows.filter(r=> set.has(displayValueForFilter(cfg,r,key)));
+  });
+  return rows;
+}
+function computeVisibleRows(cfg){
+  const ts = tableState[cfg.tableKey];
+  let rows = getFilteredRows(cfg, null);
+  if(ts.sortKey){
+    const col = cfg.columns.find(c=>c.key===ts.sortKey);
+    rows.sort((a,b)=>{
+      let va = col.derived ? cfg.computeDerived(a)[ts.sortKey] : a[ts.sortKey];
+      let vb = col.derived ? cfg.computeDerived(b)[ts.sortKey] : b[ts.sortKey];
+      if(typeof va === 'string' || typeof vb === 'string') return String(va||'').localeCompare(String(vb||''),'pt')*ts.sortDir;
+      return ((va||0)-(vb||0))*ts.sortDir;
+    });
+  }
+  return rows;
+}
+function closeFilterMenu(){
+  if(openFilterPanel){
+    openFilterPanel.panel.remove();
+    document.removeEventListener('click', outsideFilterClick, {capture:true});
+    openFilterPanel = null;
+  }
+}
+function outsideFilterClick(e){
+  if(openFilterPanel && !openFilterPanel.panel.contains(e.target) && !e.target.classList.contains('th-filter-btn')){
+    closeFilterMenu();
+  }
+}
+function toggleFilterMenu(tableKey, colKey, btnEl){
+  if(openFilterPanel && openFilterPanel.tableKey===tableKey && openFilterPanel.colKey===colKey){ closeFilterMenu(); return; }
+  closeFilterMenu();
+  const cfg = tableRegistry[tableKey];
+  const ts = tableState[tableKey];
+  const rows = getFilteredRows(cfg, colKey);
+  const uniqueVals = Array.from(new Set(rows.map(r=>displayValueForFilter(cfg,r,colKey)))).sort((a,b)=>String(a).localeCompare(String(b),'pt',{numeric:true}));
+  const activeSet = ts.colFilters[colKey];
+  const panel = document.createElement('div');
+  panel.className='filter-panel';
+  panel.addEventListener('click', e=>e.stopPropagation());
+  panel.innerHTML = `
+    <div class="fp-sort-row">
+      <button class="fp-btn" data-act="sort-asc">A→Z ▲</button>
+      <button class="fp-btn" data-act="sort-desc">Z→A ▼</button>
+    </div>
+    <input type="text" class="fp-search" placeholder="Buscar...">
+    <label class="fp-item fp-all"><input type="checkbox" class="fp-all-cb" ${!activeSet?'checked':''}> Selecionar tudo</label>
+    <div class="fp-list">
+      ${uniqueVals.map(v=>`<label class="fp-item"><input type="checkbox" class="fp-item-cb" value="${esc(v)}" ${(!activeSet || activeSet.has(v))?'checked':''}> ${esc(v)}</label>`).join('')}
+    </div>
+    <div class="fp-actions">
+      <button class="ghost" data-act="clear">Limpar filtro</button>
+      <button class="secondary" data-act="apply">OK</button>
+    </div>
+  `;
+  btnEl.closest('th').appendChild(panel);
+  openFilterPanel = {tableKey,colKey,panel};
+
+  panel.querySelector('[data-act="sort-asc"]').addEventListener('click', ()=>{ ts.sortKey=colKey; ts.sortDir=1; render(); });
+  panel.querySelector('[data-act="sort-desc"]').addEventListener('click', ()=>{ ts.sortKey=colKey; ts.sortDir=-1; render(); });
+  panel.querySelector('.fp-search').addEventListener('input', e=>{
+    const q = e.target.value.toLowerCase();
+    panel.querySelectorAll('.fp-item:not(.fp-all)').forEach(lab=>{
+      lab.style.display = lab.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+  panel.querySelector('.fp-all-cb').addEventListener('change', e=>{
+    panel.querySelectorAll('.fp-item-cb').forEach(cb=>cb.checked = e.target.checked);
+  });
+  panel.querySelector('[data-act="clear"]').addEventListener('click', ()=>{
+    ts.colFilters[colKey] = null;
+    render();
+  });
+  panel.querySelector('[data-act="apply"]').addEventListener('click', ()=>{
+    const checked = Array.from(panel.querySelectorAll('.fp-item-cb:checked')).map(cb=>cb.value);
+    if(checked.length===uniqueVals.length){ ts.colFilters[colKey] = null; }
+    else { ts.colFilters[colKey] = new Set(checked); }
+    render();
+  });
+  setTimeout(()=>document.addEventListener('click', outsideFilterClick, {capture:true}), 0);
+}
+
+// =================== TABELA GENÉRICA (excel-like) ===================
+function renderTablePage(cfg){
+  tableState[cfg.tableKey] = tableState[cfg.tableKey] || {colFilters:{}, sortKey:null, sortDir:1};
+  tableRegistry[cfg.tableKey] = cfg;
+  const ts = tableState[cfg.tableKey];
+
+  const theadCols = cfg.columns.map(c=>{
+    const active = ts.colFilters[c.key] || ts.sortKey===c.key;
+    const arrow = ts.sortKey===c.key ? (ts.sortDir>0?' ▲':' ▼') : '';
+    return `<th><div class="th-flex"><span>${c.label}${arrow}</span><button class="th-filter-btn ${active?'active':''}" onclick="toggleFilterMenu('${cfg.tableKey}','${c.key}', this)">▾</button></div></th>`;
+  }).join('') + '<th class="no-print"></th>';
+
+  return `
+    <h2>${cfg.title}</h2>
+    <div class="caption">${cfg.caption}</div>
+    ${cfg.formHtml || ''}
+    <div class="toolbar no-print">
+      <button class="secondary" onclick="addTableRow('${cfg.tableKey}')">+ Nova linha em branco</button>
+      <button class="secondary" onclick="exportTable('${cfg.tableKey}')">⬇️ Exportar Excel</button>
+      <button class="secondary" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+    ${cfg.metricsHtml || ''}
+    <div class="panel" style="padding:0;">
+      <div class="table-wrap">
+        <table id="tbl-${cfg.tableKey}">
+          <thead><tr>${theadCols}</tr></thead>
+          <tbody id="tbody-${cfg.tableKey}"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function tableCellHtml(cfg, row, idx, col){
+  if(col.derived){
+    const d = cfg.computeDerived(row);
+    const v = d[col.key];
+    let display;
+    if(col.type==='pct') display = fmtPct(v);
+    else if(col.type==='money') display = fmtR(v);
+    else if(col.type==='text') display = esc(v);
+    else display = fmt(v) + (col.unit ? ' '+col.unit : '');
+    return `<td class="readonly">${display}</td>`;
+  }
+  if(col.type==='select'){
+    const opts = col.optionsFn().map(o=>`<option value="${esc(o)}" ${row[col.key]===o?'selected':''}>${esc(o)}</option>`).join('');
+    return `<td><select data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" onchange="onCellEdit(this,'${cfg.tableKey}')"><option value="">—</option>${opts}</select></td>`;
+  }
+  if(col.type==='date'){
+    return `<td><input type="date" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${esc(row[col.key])}" oninput="onCellEdit(this,'${cfg.tableKey}')"></td>`;
+  }
+  if(col.type==='pctinput'){
+    const v = fractionToPercentDisplay(row[col.key]);
+    return `<td><div class="cell-unit"><input type="number" step="0.1" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" data-pct="1" value="${v}" oninput="onCellEdit(this,'${cfg.tableKey}')"><span>%</span></div></td>`;
+  }
+  if(col.type==='number'){
+    const unit = col.unit ? `<span>${col.unit}</span>` : '';
+    return `<td><div class="cell-unit"><input type="number" step="any" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${row[col.key]===undefined?'':row[col.key]}" oninput="onCellEdit(this,'${cfg.tableKey}')">${unit}</div></td>`;
+  }
+  if(col.type==='checkbox'){
+    return `<td style="text-align:center; padding:7px 9px;"><input type="checkbox" style="width:auto;" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" ${row[col.key]?'checked':''} onchange="onCellEditCheckbox(this,'${cfg.tableKey}')"></td>`;
+  }
+  return `<td><input type="text" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${esc(row[col.key])}" oninput="onCellEdit(this,'${cfg.tableKey}')"></td>`;
+}
+function onCellEditCheckbox(el, tableKey){
+  recordUndo();
+  const idx = Number(el.dataset.idx);
+  const field = el.dataset.field;
+  const row = tableRowsVisible[tableKey][idx];
+  row[field] = el.checked;
+  scheduleSave();
+}
+
+let tableRowsVisible = {};
+
+function renderTbody(tableKey){
+  const cfg = tableRegistry[tableKey];
+  const rows = computeVisibleRows(cfg);
+  tableRowsVisible[tableKey] = rows;
+  const tbody = document.getElementById('tbody-'+tableKey);
+  if(!tbody) return;
+  if(!rows.length){
+    tbody.innerHTML = `<tr><td colspan="${cfg.columns.length+1}" class="empty">Nenhum registro encontrado (verifique os filtros) ou lance um novo registro acima.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((row,idx)=>{
+    const cells = cfg.columns.map(col=>tableCellHtml(cfg, row, idx, col)).join('');
+    return `<tr data-row-idx="${idx}">${cells}<td class="no-print"><button class="ghost" onclick="deleteTableRow('${tableKey}', ${idx})">✕</button></td></tr>`;
+  }).join('');
+}
+
+function onCellEdit(el, tableKey){
+  recordUndo();
+  const idx = Number(el.dataset.idx);
+  const field = el.dataset.field;
+  const row = tableRowsVisible[tableKey][idx];
+  let val = el.value;
+  if(el.tagName==='INPUT' && el.type==='number'){
+    val = val==='' ? 0 : Number(val);
+    if(el.dataset.pct) val = pctToFraction(val);
+  }
+  row[field] = val;
+  const tr = el.closest('tr');
+  const cfg = tableRegistry[tableKey];
+  // autofill de campo dependente (ex: variedade sugerida a partir do talhão), só se o campo alvo estiver vazio
+  const editedCol = cfg.columns.find(c=>c.key===field);
+  if(editedCol && editedCol.autofillTarget && !row[editedCol.autofillTarget]){
+    const targetIdx = cfg.columns.findIndex(c=>c.key===editedCol.autofillTarget);
+    const newVal = editedCol.autofillFn(val);
+    if(newVal && targetIdx>-1){
+      row[editedCol.autofillTarget] = newVal;
+      const targetInput = tr.children[targetIdx].querySelector('input,select');
+      if(targetInput) targetInput.value = newVal;
+    }
+  }
+  cfg.columns.forEach((col,ci)=>{
+    if(col.derived){
+      const d = cfg.computeDerived(row);
+      const v = d[col.key];
+      let display;
+      if(col.type==='pct') display = fmtPct(v);
+      else if(col.type==='money') display = fmtR(v);
+      else if(col.type==='text') display = esc(v);
+      else display = fmt(v) + (col.unit ? ' '+col.unit : '');
+      tr.children[ci].textContent = display;
+    }
+  });  scheduleSave();
+}
+function addTableRow(tableKey){
+  recordUndo();
+  const cfg = tableRegistry[tableKey];
+  cfg.rows.push(cfg.newRow());
+  render();
+}
+function deleteTableRow(tableKey, idx){
+  recordUndo();
+  const cfg = tableRegistry[tableKey];
+  const row = tableRowsVisible[tableKey][idx];
+  const realIdx = cfg.rows.indexOf(row);
+  if(realIdx>-1) cfg.rows.splice(realIdx,1);
+  render();
+}
+
+// =================== FORMULÁRIO DE INSERÇÃO (acima da tabela) ===================
+function renderAddForm(cfg){
+  const editableCols = cfg.columns.filter(c=>!c.derived);
+  const fields = editableCols.map(c=>{
+    if(c.type==='select'){
+      const opts = c.optionsFn().map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');
+      return `<div><label>${c.label}</label><select name="${c.key}">${opts}</select></div>`;
+    }
+    if(c.type==='date') return `<div><label>${c.label}</label><input type="date" name="${c.key}"></div>`;
+    if(c.type==='pctinput') return `<div><label>${c.label} (%)</label><input type="number" step="0.1" name="${c.key}" placeholder="Ex: 15,9"></div>`;
+    if(c.type==='number') return `<div><label>${c.label}${c.unit?` (${c.unit})`:''}</label><input type="number" step="any" name="${c.key}"></div>`;
+    if(c.type==='checkbox') return `<div style="display:flex; align-items:flex-end; padding-bottom:8px;"><label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" name="${c.key}" style="width:auto;"> ${c.label}</label></div>`;
+    return `<div><label>${c.label}</label><input type="text" name="${c.key}"></div>`;
+  }).join('');
+  return `
+    <div class="panel">
+      <p class="section-title">Adicionar registro</p>
+      <div class="grid cols-3" id="addform-${cfg.tableKey}">${fields}</div>
+      <button class="primary" style="margin-top:14px;" onclick="submitAddForm('${cfg.tableKey}')" type="button">Adicionar</button>
+    </div>
+  `;
+}
+function submitAddForm(tableKey){
+  recordUndo();
+  const cfg = tableRegistry[tableKey];
+  const wrap = document.getElementById('addform-'+tableKey);
+  const row = {};
+  cfg.columns.filter(c=>!c.derived).forEach(c=>{
+    const el = wrap.querySelector(`[name="${c.key}"]`);
+    let v = c.type==='checkbox' ? (el ? el.checked : false) : (el ? el.value : '');
+    if(c.type==='number') v = v===''?0:Number(v);
+    if(c.type==='pctinput') v = pctToFraction(v);
+    row[c.key] = v;
+  });
+  cfg.rows.push(row);
+  render();
+}
+
+// =================== EXPORTAR EXCEL (estilizado, via ExcelJS) ===================
+function styleSheet(ws, columns){
+  const header = ws.getRow(1);
+  header.eachCell(cell=>{
+    cell.font = {bold:true, color:{argb:'FFFFFFFF'}};
+    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF4C6B3F'}};
+    cell.alignment = {vertical:'middle', horizontal:'center', wrapText:true};
+    cell.border = {bottom:{style:'thin'}, top:{style:'thin'}, left:{style:'thin'}, right:{style:'thin'}};
+  });
+  header.height = 26;
+  columns.forEach((c,i)=>{
+    const col = ws.getColumn(i+1);
+    col.width = Math.max(14, c.label.length+4);
+    if(c.type==='money') col.numFmt = '"R$" #,##0.00';
+    else if(c.type==='pct' || c.type==='pctinput') col.numFmt = '0.0%';
+    else if(c.type==='number' || c.derived) col.numFmt = '#,##0.00';
+    col.alignment = {vertical:'middle'};
+  });
+  ws.views = [{state:'frozen', ySplit:1}];
+  const lastCol = String.fromCharCode(64 + Math.min(26,columns.length));
+  ws.autoFilter = `A1:${lastCol}1`;
+  ws.eachRow((row, rn)=>{ if(rn>1) row.eachCell(cell=>{ cell.border = {bottom:{style:'hair', color:{argb:'FFE4E0D4'}}}; }); });
+}
+async function addSheetForTable(workbook, sheetName, columns, rows, computeDerived){
+  const ws = workbook.addWorksheet(sheetName.slice(0,31));
+  ws.columns = columns.map(c=>({header:c.label, key:c.key}));
+  rows.forEach(r=>{
+    const rowData = {};
+    columns.forEach(c=>{
+      let v = c.derived ? computeDerived(r)[c.key] : r[c.key];
+      if(c.type==='pct' || c.type==='pctinput') v = Number(v)||0;
+      rowData[c.key] = v;
+    });
+    ws.addRow(rowData);
+  });
+  styleSheet(ws, columns);
+  return ws;
+}
+async function exportTable(tableKey){
+  const cfg = tableRegistry[tableKey];
+  const wb = new ExcelJS.Workbook();
+  await addSheetForTable(wb, cfg.title.replace(/[^\w\sÀ-ÿ-]/g,'').trim(), cfg.columns, cfg.rows, cfg.computeDerived);
+  const buf = await wb.xlsx.writeBuffer();
+  downloadBuffer(buf, `${cfg.exportName}_${S().nome.replace(/\//g,'-')}.xlsx`);
+}
+async function exportSafraCompleta(){
+  const s = S();
+  const wb = new ExcelJS.Workbook();
+  const colheitaCfg = buildColheitaCfg(s);
+  const adtoCfg = buildAdiantamentosCfg(s);
+  const vendaCfg = buildVendasCfg(s);
+  await addSheetForTable(wb, 'Cadastros - Talhoes', [{key:'talhao',label:'Talhão'},{key:'area',label:'Área (ha)',type:'number'},{key:'variedade',label:'Variedade 1'},{key:'variedade2',label:'Variedade 2'}], s.talhoes, ()=>({}));
+  await addSheetForTable(wb, 'Colheita', colheitaCfg.columns, colheitaCfg.rows, colheitaCfg.computeDerived);
+  await addSheetForTable(wb, 'Adiantamento', adtoCfg.columns, adtoCfg.rows, adtoCfg.computeDerived);
+  await addSheetForTable(wb, 'Silos e Vendas', vendaCfg.columns, vendaCfg.rows, vendaCfg.computeDerived);
+  const buf = await wb.xlsx.writeBuffer();
+  downloadBuffer(buf, `Custos_${s.cultura}_${s.nome.replace(/\//g,'-')}.xlsx`);
+}
+function downloadBuffer(buf, filename){
+  const blob = new Blob([buf], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// =================== CONFIG DE COLUNAS POR TABELA ===================
+function buildColheitaCfg(s){
+  return {
+    tableKey: 'colheita', title: '🚜 Colheita',
+    caption: 'Clique no ▾ do cabeçalho para filtrar ou ordenar. A variedade é sugerida pelo talhão; se houver duas variedades no mesmo talhão, você pode alterar a variedade na própria linha.',
+    rows: s.colheita, exportName: 'colheita', computeDerived: colheitaDerived,
+    columns: [
+      {key:'data', label:'Data', type:'date'},
+      {key:'talhao', label:'Talhão', type:'select', optionsFn:()=>{ const p=s.talhoes.filter(t=>t.plantado); return (p.length?p:s.talhoes).map(t=>t.talhao); },
+        autofillTarget:'variedade', autofillFn:(val)=>{ const t=s.talhoes.find(x=>x.talhao===val); return t?t.variedade:''; } },
+      {key:'variedade', label:'Variedade', type:'text'},
+      {key:'local', label:'Local - Silo', type:'select', optionsFn:()=>s.locais},
+      {key:'motorista', label:'Motorista', type:'select', optionsFn:()=>s.motoristas},
+      {key:'pesoBruto', label:'Peso Bruto', type:'number', unit:'kg'},
+      {key:'umidade', label:'Umidade', type:'pctinput'},
+      {key:'impureza', label:'Impureza', type:'pctinput'},
+      {key:'saldoLiquido', label:'Saldo Líquido', type:'number', unit:'kg'},
+      {key:'sacasBrutas', label:'Sacas Brutas', derived:true, unit:'sc'},
+      {key:'vlSaca', label:'Vl/Saca Frete', type:'number', unit:'R$'},
+      {key:'totalFrete', label:'Total Frete', derived:true, type:'money'},
+      {key:'sacasLiquidas', label:'Sacas Líquidas', derived:true, unit:'sc'},
+      {key:'pctDesconto', label:'% Desconto', derived:true, type:'pct'},
+    ],
+    newRow: ()=>{
+      const p = s.talhoes.filter(t=>t.plantado);
+      const defaultTalhao = (p[0] || s.talhoes[0] || {}).talhao || '';
+      const t = s.talhoes.find(x=>x.talhao===defaultTalhao);
+      return {data:'', talhao:defaultTalhao, variedade: t?t.variedade:'', local:s.locais[0]||'', motorista:s.motoristas[0]||'', pesoBruto:0, umidade:0, impureza:0, saldoLiquido:0, vlSaca:1.3};
+    },
+  };
+}
+function buildAdiantamentosCfg(s){
+  return {
+    tableKey:'adiantamentos', title:'💰 Adiantamentos',
+    caption: 'Lançamentos de adiantamento por motorista (diesel, borracharia, solda...).',
+    rows: s.adiantamentos, exportName:'adiantamentos', computeDerived: r=>({}),
+    columns: [
+      {key:'data', label:'Data', type:'date'},
+      {key:'motorista', label:'Motorista', type:'select', optionsFn:()=>s.motoristas},
+      {key:'servico', label:'Serviço', type:'text'},
+      {key:'valor', label:'Valor', type:'number', unit:'R$'},
+    ],
+    newRow: ()=>({data:'', motorista:s.motoristas[0]||'', servico:'', valor:0}),
+  };
+}
+function buildVendasCfg(s){
+  return {
+    tableKey:'vendas', title:'📦 Silos e Vendas',
+    caption: 'Lançamentos de vendas. O estoque por local é calculado automaticamente a partir da colheita.',
+    rows: s.vendas, exportName:'vendas', computeDerived: vendaDerived,
+    columns: [
+      {key:'data', label:'Data', type:'date'},
+      {key:'local', label:'Local - Silo', type:'select', optionsFn:()=>s.locais},
+      {key:'comprador', label:'Comprador', type:'text'},
+      {key:'pesoVendido', label:'Peso Vendido', type:'number', unit:'kg'},
+      {key:'sacasVendidas', label:'Sacas Vendidas', derived:true, unit:'sc'},
+      {key:'vlSaca', label:'Vl/Saca', type:'number', unit:'R$'},
+      {key:'totalVenda', label:'Total Venda', derived:true, type:'money'},
+    ],
+    newRow: ()=>({data:'', local:s.locais[0]||'', comprador:'', pesoVendido:0, vlSaca:0}),
+  };
+}
+
+// =================== PÁGINA: COLHEITA ===================
+function pageColheita(){
+  const s = S();
+  const cfg = buildColheitaCfg(s);
+  cfg.formHtml = renderAddForm(cfg);
+
+  const totalCargas = s.colheita.length;
+  const totalSacas = s.colheita.reduce((sum,c)=>sum+colheitaDerived(c).sacasLiquidas,0);
+  const totalFrete = s.colheita.reduce((sum,c)=>sum+colheitaDerived(c).totalFrete,0);
+  cfg.metricsHtml = `<div class="metrics">
+    <div class="metric"><div class="val">${totalCargas}</div><div class="lbl">Total de cargas</div></div>
+    <div class="metric"><div class="val">${fmt(totalSacas)}</div><div class="lbl">Sacas líquidas totais</div></div>
+    <div class="metric"><div class="val">${fmtR(totalFrete)}</div><div class="lbl">Total frete</div></div>
+  </div>`;
+
+  return renderTablePage(cfg);
+}
+
+// =================== PÁGINA: ADIANTAMENTOS ===================
+function pageAdiantamentos(){
+  const s = S();
+  const cfg = buildAdiantamentosCfg(s);
+  cfg.formHtml = renderAddForm(cfg);
+
+  const resumo = s.motoristas.map(mot=>{
+    const cargas = s.colheita.filter(c=>c.motorista===mot);
+    const totalFrete = cargas.reduce((sum,c)=>sum+colheitaDerived(c).totalFrete,0);
+    const adiantado = s.adiantamentos.filter(a=>a.motorista===mot).reduce((sum,a)=>sum+Number(a.valor||0),0);
+    return {mot, cargas: cargas.length, totalFrete, adiantado, aPagar: totalFrete-adiantado};
+  });
+  const totFrete = resumo.reduce((sum,r)=>sum+r.totalFrete,0);
+  const totAdto = resumo.reduce((sum,r)=>sum+r.adiantado,0);
+
+  cfg.metricsHtml = `
+    <div class="metrics">
+      <div class="metric"><div class="val">${fmtR(totFrete)}</div><div class="lbl">Total de frete</div></div>
+      <div class="metric"><div class="val">${fmtR(totAdto)}</div><div class="lbl">Total adiantado</div></div>
+      <div class="metric"><div class="val text-red">${fmtR(totFrete-totAdto)}</div><div class="lbl">Saldo a pagar</div></div>
+    </div>
+    <div class="panel">
+      <p class="section-title">Resumo por motorista</p>
+      <div class="table-wrap"><table>
+        <tr><th style="padding:8px 10px;">Motorista</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Total Frete</th><th style="padding:8px 10px;">Adiantado</th><th style="padding:8px 10px;">A Pagar</th></tr>
+        ${resumo.map(r=>`<tr><td class="readonly">${esc(r.mot)}</td><td class="readonly">${r.cargas}</td><td class="readonly">${fmtR(r.totalFrete)}</td><td class="readonly">${fmtR(r.adiantado)}</td><td class="readonly text-red">${fmtR(r.aPagar)}</td></tr>`).join('')}
+      </table></div>
+    </div>
+  `;
+
+  return renderTablePage(cfg);
+}
+
+// =================== PÁGINA: SILOS E VENDAS ===================
+function pageVendas(){
+  const s = S();
+  const cfg = buildVendasCfg(s);
+  cfg.formHtml = renderAddForm(cfg);
+
+  const estoque = s.locais.map(local=>{
+    const cargasLocal = s.colheita.filter(c=>c.local===local);
+    const sacasLiq = cargasLocal.reduce((sum,c)=>sum+colheitaDerived(c).sacasLiquidas,0);
+    const vendidas = s.vendas.filter(v=>v.local===local).reduce((sum,v)=>sum+vendaDerived(v).sacasVendidas,0);
+    return {local, cargas: cargasLocal.length, sacasLiq, vendidas, saldo: sacasLiq-vendidas};
+  });
+  const totalVendido = s.vendas.reduce((sum,v)=>sum+vendaDerived(v).sacasVendidas,0);
+  const faturamento = s.vendas.reduce((sum,v)=>sum+vendaDerived(v).totalVenda,0);
+  const vlMedio = totalVendido ? faturamento/totalVendido : 0;
+  const saldoEstoque = estoque.reduce((sum,e)=>sum+e.saldo,0);
+
+  cfg.metricsHtml = `
+    <div class="panel">
+      <p class="section-title">Estoque por local de entrega</p>
+      <div class="table-wrap"><table>
+        <tr><th style="padding:8px 10px;">Local - Silo</th><th style="padding:8px 10px;">Cargas</th><th style="padding:8px 10px;">Sacas (60kg)</th><th style="padding:8px 10px;">Sacas Vendidas</th><th style="padding:8px 10px;">Saldo a Vender</th></tr>
+        ${estoque.map(e=>`<tr><td class="readonly">${esc(e.local)}</td><td class="readonly">${e.cargas}</td><td class="readonly">${fmt(e.sacasLiq)}</td><td class="readonly">${fmt(e.vendidas)}</td><td class="readonly">${fmt(e.saldo)}</td></tr>`).join('')}
+      </table></div>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="val">${fmt(totalVendido)}</div><div class="lbl">Total vendido (sc)</div></div>
+      <div class="metric"><div class="val">${fmtR(faturamento)}</div><div class="lbl">Faturamento total</div></div>
+      <div class="metric"><div class="val">${fmtR(vlMedio)}</div><div class="lbl">Vl médio/saca</div></div>
+      <div class="metric"><div class="val">${fmt(saldoEstoque)}</div><div class="lbl">Saldo em estoque (sc)</div></div>
+    </div>
+  `;
+
+  return renderTablePage(cfg);
+}
+
+// =================== PÁGINA: CADASTROS ===================
+function pageCadastros(){
+  const s = S();
+  const cfg = {
+    tableKey:'talhoes', title:'⚙️ Cadastros · Talhões',
+    caption: 'Marque "Será Plantado?" para os talhões que entram nesta safra — só esses contam na Área Plantada do Dashboard e aparecem pra lançar colheita.',
+    rows: s.talhoes, exportName:'talhoes', computeDerived: r=>({}),
+    columns: [
+      {key:'talhao', label:'Talhão', type:'text'},
+      {key:'area', label:'Área', type:'number', unit:'ha'},
+      {key:'variedade', label:'Variedade 1', type:'text'},
+      {key:'variedade2', label:'Variedade 2', type:'text'},
+      {key:'plantado', label:'Será Plantado?', type:'checkbox'},
+    ],
+    newRow: ()=>({talhao:'', area:0, variedade:'', variedade2:'', plantado:false}),
+  };
+  cfg.formHtml = renderAddForm(cfg);
+  const areaTotalCadastrada = s.talhoes.reduce((sum,t)=>sum+Number(t.area||0),0);
+  const areaPlantada = s.talhoes.filter(t=>t.plantado).reduce((sum,t)=>sum+Number(t.area||0),0);
+  cfg.metricsHtml = `<div class="metrics">
+    <div class="metric"><div class="val">${fmt(areaTotalCadastrada)}</div><div class="lbl">Área total cadastrada (ha)</div></div>
+    <div class="metric"><div class="val">${fmt(areaPlantada)}</div><div class="lbl">Área plantada nesta safra (ha)</div></div>
+  </div>`;
+
+  const talhaoTableHtml = renderTablePage(cfg);
+
+  return `
+    ${talhaoTableHtml}
+    <div class="grid cols-2">
+      <div class="panel">
+        <p class="section-title">Locais de entrega</p>
+        <div id="lista-locais">${s.locais.map((l,i)=>`<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line);"><span>${esc(l)}</span><button class="ghost no-print" onclick="removerLocal(${i})">remover</button></div>`).join('')}</div>
+        <form id="form-local" style="margin-top:12px; display:flex; gap:8px;" class="no-print">
+          <input type="text" name="local" placeholder="Novo local" required>
+          <button class="primary" type="submit">+</button>
+        </form>
+      </div>
+      <div class="panel">
+        <p class="section-title">Motoristas</p>
+        <div id="lista-motoristas">${s.motoristas.map((m,i)=>`<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line);"><span>${esc(m)}</span><button class="ghost no-print" onclick="removerMotorista(${i})">remover</button></div>`).join('')}</div>
+        <form id="form-mot" style="margin-top:12px; display:flex; gap:8px;" class="no-print">
+          <input type="text" name="mot" placeholder="Novo motorista" required>
+          <button class="primary" type="submit">+</button>
+        </form>
+      </div>
+    </div>
+  `;
+}
+function removerLocal(i){ recordUndo(); S().locais.splice(i,1); render(); }
+function removerMotorista(i){ recordUndo(); S().motoristas.splice(i,1); render(); }
+
+// =================== PÁGINA: CADASTRO DE SAFRA ===================
+function pageSafras(){
+  const cards = Object.entries(state.safras).map(([key,s])=>{
+    const areaTotal = s.talhoes.reduce((sum,t)=>sum+Number(t.area||0),0);
+    return `
+      <div class="safra-card ${key===state.safraAtual?'active':''}">
+        <div>
+          <h3>${esc(s.nome)} <span class="badge">${esc(s.cultura)}</span></h3>
+          <p>${esc(s.propriedade)} · ${fmt(areaTotal)} ha cadastrados · ${s.colheita.length} lançamentos de colheita</p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="secondary" onclick="usarSafra('${key}')">Usar esta safra</button>
+          ${Object.keys(state.safras).length>1 ? `<button class="ghost" onclick="removerSafra('${key}')">Excluir</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <h2>🌾 Cadastro de Safra</h2>
+    <div class="caption">Ao criar uma nova safra, os talhões, locais de entrega e motoristas são copiados da safra atual (variedade e "Será Plantado?" ficam em branco/desmarcado pra você escolher de novo). Colheita, adiantamentos e vendas começam zerados.</div>
+    ${cards}
+    <div class="panel" style="margin-top:20px;">
+      <p class="section-title">Nova safra</p>
+      <div class="grid cols-2">
+        <div><label>Nome da safra</label><input type="text" id="nova-safra-nome" placeholder="Ex: Soja 2026/2027"></div>
+        <div><label>Cultura</label>
+          <select id="nova-safra-cultura">
+            <option>Soja</option><option>Milho</option><option>Sorgo</option><option>Algodão</option><option>Outra</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <label>Propriedade</label><input type="text" id="nova-safra-propriedade" value="${esc(S().propriedade)}">
+      </div>
+      <button class="primary" style="margin-top:14px;" onclick="criarNovaSafra()" type="button">Criar safra</button>
+    </div>
+  `;
+}
+function usarSafra(key){ state.safraAtual = key; setPage('dashboard'); }
+function removerSafra(key){
+  recordUndo();
+  delete state.safras[key];
+  if(state.safraAtual===key) state.safraAtual = Object.keys(state.safras)[0];
+  render();
+}
+function criarNovaSafra(){
+  const nome = document.getElementById('nova-safra-nome').value.trim();
+  if(!nome){ alert('Dá um nome pra safra antes de criar.'); return; }
+  const cultura = document.getElementById('nova-safra-cultura').value;
+  const propriedade = document.getElementById('nova-safra-propriedade').value.trim() || S().propriedade;
+  const atual = S();
+  const key = 'safra_' + Date.now();
+  recordUndo();
+  state.safras[key] = {
+    nome, cultura, produtor: PRODUTOR_FIXO, propriedade,
+    talhoes: JSON.parse(JSON.stringify(atual.talhoes)).map(t=>({...t, variedade:'', variedade2:'', plantado:false})),
+    locais: [...atual.locais],
+    motoristas: [...atual.motoristas],
+    colheita: [], adiantamentos: [], vendas: [],
+  };
+  state.safraAtual = key;
+  setPage('cadastros');
+}
+
+// =================== EVENTOS ESTÁTICOS ===================
+function bindStaticEvents(){
+  Object.keys(tableRegistry).forEach(k=>{ if(document.getElementById('tbody-'+k)) renderTbody(k); });
+
+  const fLocal = document.getElementById('form-local');
+  if(fLocal) fLocal.addEventListener('submit', e=>{ e.preventDefault(); recordUndo(); const f=new FormData(fLocal); S().locais.push(f.get('local')); render(); });
+
+  const fMot = document.getElementById('form-mot');
+  if(fMot) fMot.addEventListener('submit', e=>{ e.preventDefault(); recordUndo(); const f=new FormData(fMot); S().motoristas.push(f.get('mot')); render(); });
+
+  // autofill no formulário de "Adicionar registro" (ex: variedade sugerida ao escolher o talhão)
+  Object.values(tableRegistry).forEach(cfg=>{
+    const wrap = document.getElementById('addform-'+cfg.tableKey);
+    if(!wrap) return;
+    cfg.columns.forEach(col=>{
+      if(!col.autofillTarget) return;
+      const sourceEl = wrap.querySelector(`[name="${col.key}"]`);
+      const targetEl = wrap.querySelector(`[name="${col.autofillTarget}"]`);
+      if(sourceEl && targetEl){
+        sourceEl.addEventListener('change', ()=>{
+          if(!targetEl.value) targetEl.value = col.autofillFn(sourceEl.value) || '';
+        });
+      }
+    });
+  });
+}
+
+// =================== LOGIN FIREBASE ===================
+function showAuthState(loggedIn){
+  document.body.classList.remove('auth-pending','auth-logged-out','authenticated');
+  document.body.classList.add(loggedIn ? 'authenticated' : 'auth-logged-out');
+}
+function authErrorMessage(err){
+  const code = err && err.code || '';
+  if(code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return 'E-mail ou senha incorretos.';
+  if(code.includes('too-many-requests')) return 'Muitas tentativas. Aguarde um pouco e tente novamente.';
+  return 'Não foi possível entrar. Confira o e-mail e a senha.';
+}
+function initAuth(){
+  if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+
+  const form = document.getElementById('loginForm');
+  const btn = document.getElementById('loginButton');
+  const errEl = document.getElementById('loginError');
+  form.addEventListener('submit', async e=>{
+    e.preventDefault();
+    errEl.textContent=''; btn.disabled=true; btn.textContent='Entrando...';
+    try{
+      await firebase.auth().signInWithEmailAndPassword(
+        document.getElementById('loginEmail').value.trim(),
+        document.getElementById('loginPassword').value
+      );
+    }catch(err){ errEl.textContent=authErrorMessage(err); }
+    finally{ btn.disabled=false; btn.textContent='Entrar'; }
+  });
+  document.getElementById('logoutBtn').addEventListener('click', ()=>firebase.auth().signOut());
+
+  firebase.auth().onAuthStateChanged(user=>{
+    if(user){
+      showAuthState(true);
+      if(!firebaseReady) initFirebase();
+      else render();
+    }else{
+      showAuthState(false);
+      clearUndoHistory();
+      firebaseReady=false;
+      if(unsubscribeSnapshot){ unsubscribeSnapshot(); unsubscribeSnapshot=null; }
+      db=null; docRef=null;
+      setSyncStatus('⚪ Aguardando login', 'local');
+    }
+  });
+}
+
+if(FIREBASE_CONFIGURADO){
+  initAuth();
+} else {
+  showAuthState(true);
+  render();
+}
+</script>
+</body>
+</html>
