@@ -831,9 +831,13 @@ function tableCellHtml(cfg, row, idx, col){
     return `<td><div class="cell-unit"><input type="number" step="0.1" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" data-pct="1" value="${v}" oninput="onCellEdit(this,'${cfg.tableKey}')"><span>%</span></div></td>`;
   }
   if(col.type==='number'){
-    const unit = col.unit ? `<span>${col.unit}</span>` : '';
-    return `<td><div class="cell-unit"><input type="number" step="any" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${row[col.key]===undefined?'':row[col.key]}" oninput="onCellEdit(this,'${cfg.tableKey}')">${unit}</div></td>`;
+  const unit = col.unit ? `<span>${col.unit}</span>` : '';
+  if(col.brInteger){
+    const v = row[col.key]==='' || row[col.key]===undefined ? '' : Number(row[col.key]).toLocaleString('pt-BR',{maximumFractionDigits:0});
+    return `<td><div class="cell-unit"><input type="text" inputmode="numeric" data-br-int="1" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${v}" oninput="onCellEdit(this,'${cfg.tableKey}')">${unit}</div></td>`;
   }
+  return `<td><div class="cell-unit"><input type="number" step="any" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${row[col.key]===undefined?'':row[col.key]}" oninput="onCellEdit(this,'${cfg.tableKey}')">${unit}</div></td>`;
+}
   if(col.type==='checkbox'){
     return `<td style="text-align:center; padding:7px 9px;"><input type="checkbox" style="width:auto;" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" ${row[col.key]?'checked':''} onchange="onCellEditCheckbox(this,'${cfg.tableKey}')"></td>`;
   }
@@ -885,10 +889,16 @@ function onCellEdit(el, tableKey){
   const field = el.dataset.field;
   const row = tableRowsVisible[tableKey][idx];
   let val = el.value;
-  if(el.tagName==='INPUT' && el.type==='number'){
-    val = val==='' ? 0 : Number(val);
-    if(el.dataset.pct) val = pctToFraction(val);
-  }
+
+if(el.dataset.brInt){
+  const numeros = String(val).replace(/\D/g,'');
+  val = numeros==='' ? '' : Number(numeros);
+  el.value = numeros==='' ? '' : Number(numeros).toLocaleString('pt-BR');
+}
+else if(el.tagName==='INPUT' && el.type==='number'){
+  val = val==='' ? '' : Number(val);
+  if(el.dataset.pct) val = pctToFraction(val);
+}
   row[field] = val;
   const tr = el.closest('tr');
   const cfg = tableRegistry[tableKey];
@@ -1089,16 +1099,15 @@ function buildVendasCfg(s){
     tableKey:'vendas', title:'📦 Silos e Vendas',
     caption: 'Lançamentos de vendas. O estoque por local é calculado automaticamente a partir da colheita.',
     rows: s.vendas, exportName:'vendas', computeDerived: vendaDerived,
-    columns: [
-      {key:'data', label:'Data', type:'date'},
-      {key:'local', label:'Local - Silo', type:'select', optionsFn:()=>s.locais},
-      {key:'comprador', label:'Comprador', type:'text'},
-      {key:'pesoVendido', label:'Peso Vendido', type:'number', unit:'kg'},
-      {key:'sacasVendidas', label:'Sacas Vendidas', derived:true, unit:'sc'},
-      {key:'vlSaca', label:'Vl/Saca', type:'number', unit:'R$'},
-      {key:'totalVenda', label:'Total Venda', derived:true, type:'money'},
-    ],
-    newRow: ()=>({data:'', local:s.locais[0]||'', comprador:'', pesoVendido:0, vlSaca:0}),
+columns: [
+  {key:'data', label:'Data', type:'date'},
+  {key:'local', label:'Local - Silo', type:'select', optionsFn:()=>s.locais},
+  {key:'pesoVendido', label:'Peso Vendido', type:'number', unit:'kg', brInteger:true},
+  {key:'sacasVendidas', label:'Sacas Vendidas', derived:true, unit:'sc'},
+  {key:'vlSaca', label:'Vl/Saca', type:'number', unit:'R$'},
+  {key:'totalVenda', label:'Total Venda', derived:true, type:'money'},
+],
+newRow: ()=>({data:'', local:'', pesoVendido:'', vlSaca:''}),
   };
 }
 
@@ -1163,7 +1172,7 @@ function pageVendas(){
     const cargasLocal = s.colheita.filter(c=>c.local===local);
     const sacasLiq = cargasLocal.reduce((sum,c)=>sum+colheitaDerived(c).sacasLiquidas,0);
     const vendidas = s.vendas.filter(v=>v.local===local).reduce((sum,v)=>sum+vendaDerived(v).sacasVendidas,0);
-    return {local, cargas: cargasLocal.length, sacasLiq, vendidas, saldo: sacasLiq-vendidas};
+    const saldo = Math.round((sacasLiq-vendidas)*100)/100; return {local, cargas: cargasLocal.length, sacasLiq, vendidas, saldo: Math.abs(saldo)<0.01 ? 0 : saldo};
   });
   const totalVendido = s.vendas.reduce((sum,v)=>sum+vendaDerived(v).sacasVendidas,0);
   const faturamento = s.vendas.reduce((sum,v)=>sum+vendaDerived(v).totalVenda,0);
