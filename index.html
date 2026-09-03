@@ -408,7 +408,8 @@ function pctToFraction(percentVal){ const p = Number(percentVal)||0; return Math
 function fractionToPercentDisplay(frac){ return Math.round((frac||0)*10000)/100; }
 
 // tabela: filtros (estilo excel) + ordenação
-let tableState = {};
+let tableState = JSON.parse(localStorage.getItem('tableState') || '{}', (k,v)=>v&&v.__set?new Set(v.__set):v);
+window.addEventListener('pagehide',()=>localStorage.setItem('tableState',JSON.stringify(tableState,(k,v)=>v instanceof Set?{__set:[...v]}:v)));
 let tableRegistry = {};
 let openFilterPanel = null;
 
