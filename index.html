@@ -267,7 +267,7 @@ function normalizarEstruturaSafras(safras){
 
 // =================== ESTADO GLOBAL ===================
 let state = {
-  safraAtual: "milho2526",
+  safraAtual: localStorage.getItem('safraAtual') || "milho2526",
   safras: {
     milho2526: {
       nome: "Milho 2025/2026", cultura: "Milho",
@@ -421,7 +421,7 @@ function refreshSafraSelector(){
   const sel = document.getElementById('safra-selector');
   sel.innerHTML = Object.keys(state.safras).map(k=>`<option value="${k}" ${k===state.safraAtual?'selected':''}>${esc(state.safras[k].nome)}</option>`).join('');
 }
-document.getElementById('safra-selector').addEventListener('change', e=>{ state.safraAtual = e.target.value; render(); });
+document.getElementById('safra-selector').addEventListener('change', e=>{ state.safraAtual = e.target.value; localStorage.setItem('safraAtual',state.safraAtual); render(); });
 
 function render(){
   closeFilterMenu();
