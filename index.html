@@ -119,8 +119,8 @@
 <div id="loginScreen">
   <form id="loginForm" class="login-card" autocomplete="on">
     <h2>🌱 Custos Safra</h2>
-    <p>Fazenda Paraíso · Entre com seu usuário do Firebase.</p>
-    <div class="login-field"><label for="loginEmail">E-mail</label><input id="loginEmail" type="email" autocomplete="username" required></div>
+    <p>Fazenda Paraíso · Entre com seu e-mail ou login.</p>
+    <div class="login-field"><label for="loginEmail">E-mail ou login</label><input id="loginEmail" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required></div>
     <div class="login-field"><label for="loginPassword">Senha</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
     <button id="loginButton" class="login-submit" type="submit">Entrar</button>
     <div id="loginError" class="login-error" aria-live="polite"></div>
@@ -1411,13 +1411,24 @@ function bindStaticEvents(){
 // =================== PERFIS DE ACESSO ===================
 // E-mails de funcionários que só enxergam as abas de diesel (nunca os custos da safra).
 // O bloqueio de verdade fica nas regras do Firestore; isto aqui só ajusta a tela.
+// Pode ser e-mail completo ou só o login (ex.: "diesel").
 const USUARIOS_DIESEL = [
-  // "funcionario@exemplo.com",
+  // "diesel",
 ];
+// Login sem "@" vira e-mail neste domínio (o Firebase só aceita e-mail).
+// Ex.: "diesel" -> "diesel@fazendaparaiso.app". Crie o usuário no Firebase com esse e-mail.
+const DOMINIO_LOGIN = "fazendaparaiso.app";
+function loginParaEmail(v){
+  v = String(v||'').trim().toLowerCase();
+  return v.includes('@') ? v : `${v}@${DOMINIO_LOGIN}`;
+}
+function loginExibicao(email){
+  return String(email||'').replace(new RegExp(`@${DOMINIO_LOGIN.replace(/\./g,'\\.')}$`,'i'), '');
+}
 let perfilDiesel = false;
 function ehUsuarioDiesel(user){
   const email = (user && user.email || '').toLowerCase();
-  return USUARIOS_DIESEL.some(e=>e.toLowerCase()===email);
+  return USUARIOS_DIESEL.some(e=>loginParaEmail(e)===email);
 }
 function pageSemAcesso(){
   return `<div class="panel"><h2>⛽ Diesel</h2><p>Bem-vindo! As abas de diesel ainda estão sendo preparadas e aparecerão aqui em breve.</p></div>`;
@@ -1430,9 +1441,9 @@ function showAuthState(loggedIn){
 }
 function authErrorMessage(err){
   const code = err && err.code || '';
-  if(code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return 'E-mail ou senha incorretos.';
+  if(code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) return 'Login ou senha incorretos.';
   if(code.includes('too-many-requests')) return 'Muitas tentativas. Aguarde um pouco e tente novamente.';
-  return 'Não foi possível entrar. Confira o e-mail e a senha.';
+  return 'Não foi possível entrar. Confira o login e a senha.';
 }
 function initAuth(){
   if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
@@ -1446,7 +1457,7 @@ function initAuth(){
     errEl.textContent=''; btn.disabled=true; btn.textContent='Entrando...';
     try{
       await firebase.auth().signInWithEmailAndPassword(
-        document.getElementById('loginEmail').value.trim(),
+        loginParaEmail(document.getElementById('loginEmail').value),
         document.getElementById('loginPassword').value
       );
     }catch(err){ errEl.textContent=authErrorMessage(err); }
@@ -1458,7 +1469,7 @@ function initAuth(){
     if(user){
       perfilDiesel = ehUsuarioDiesel(user);
       document.body.classList.toggle('perfil-diesel', perfilDiesel);
-      document.getElementById('user-badge').textContent = user.email || '';
+      document.getElementById('user-badge').textContent = loginExibicao(user.email);
       showAuthState(true);
       if(perfilDiesel){
         // Funcionário do diesel nunca carrega nem grava os custos da safra.
