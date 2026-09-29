@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Custos Safra · Fazenda Paraíso</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -127,7 +128,7 @@
   /* CELULAR */
   @media (max-width:760px){
     body{flex-direction:column;}
-    aside{width:100%; padding:10px 12px; flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px; position:sticky; top:0; z-index:100;}
+    aside{width:100%; padding:10px 12px; flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px;}
     aside h1{margin:0; flex:1 1 auto;}
     aside p.sub, .nav-sep{display:none;}
     .user-badge{margin:0; flex:0 0 auto;}
@@ -141,6 +142,23 @@
     input, select{font-size:16px;}
     .panel{padding:14px;}
     h2{font-size:19px;}
+    .panel > button.primary{width:100%; padding:13px; font-size:15px;}
+    .toolbar button{flex:1 1 auto;}
+    /* Tabelas de lançamento viram cartões no celular */
+    table.cards-cel{min-width:0 !important;}
+    table.cards-cel thead{display:none;}
+    table.cards-cel, table.cards-cel tbody, table.cards-cel tr{display:block; width:100%;}
+    table.cards-cel tr{position:relative; padding:6px 0; border-bottom:3px solid var(--line);}
+    table.cards-cel tr:nth-child(even){background:#fbfaf6;}
+    table.cards-cel td{display:flex; align-items:center; width:100%; border:none; min-height:38px;}
+    table.cards-cel td::before{content:attr(data-label); flex:0 0 118px; padding-left:12px; font-size:12px; font-weight:400; color:var(--ink-soft);}
+    table.cards-cel td:not([data-label])::before, table.cards-cel td.td-acoes::before{display:none;}
+    table.cards-cel td > input, table.cards-cel td > select, table.cards-cel td > .cell-unit{flex:1; min-width:0;}
+    table.cards-cel td.readonly{padding:7px 9px 7px 0; font-weight:600; color:var(--ink);}
+    table.cards-cel td.td-acoes{justify-content:flex-end; padding:4px 12px;}
+    table.cards-cel td.td-acoes button{padding:7px 14px; font-size:13px;}
+    table.cards-cel td.td-acoes button::after{content:' Excluir';}
+    table.cards-cel td.empty{display:block; padding:12px;}
   }
 </style>
 </head>
@@ -845,7 +863,7 @@ function renderTablePage(cfg){
     ${cfg.metricsHtml || ''}
     <div class="panel" style="padding:0;">
       <div class="table-wrap">
-        <table id="tbl-${cfg.tableKey}" ${cfg.minWidth?`style="min-width:${cfg.minWidth}px;"`:''}>
+        <table id="tbl-${cfg.tableKey}" class="${cfg.cardsNoCelular?'cards-cel':''}" ${cfg.minWidth?`style="min-width:${cfg.minWidth}px;"`:''}>
           <thead><tr>${theadCols}</tr></thead>
           <tbody id="tbody-${cfg.tableKey}"></tbody>
         </table>
@@ -913,8 +931,8 @@ function renderTbody(tableKey){
     return;
   }
   tbody.innerHTML = rows.map((row,idx)=>{
-    const cells = cfg.columns.map(col=>tableCellHtml(cfg, row, idx, col)).join('');
-    return `<tr data-row-idx="${idx}">${cells}<td class="no-print"><button class="ghost" onclick="deleteTableRow('${tableKey}', ${idx})">✕</button></td></tr>`;
+    const cells = cfg.columns.map(col=>tableCellHtml(cfg, row, idx, col).replace('<td', `<td data-label="${esc(col.label)}"`)).join('');
+    return `<tr data-row-idx="${idx}">${cells}<td class="no-print td-acoes"><button class="ghost" onclick="deleteTableRow('${tableKey}', ${idx})">✕</button></td></tr>`;
   }).join('');
 }
 
@@ -1660,7 +1678,7 @@ function buildDieselControleCfg(){
     tableKey:'diesel-controle', title:'⛽ Controle Diesel',
     caption:'Lance cada abastecimento de máquina. As linhas abaixo podem ser corrigidas direto na tabela; clique no ▾ do cabeçalho para filtrar.',
     rows: diesel.lancamentos, exportName:'controle_diesel', exportFileName:`Controle_Diesel_${hojeISO()}.xlsx`,
-    computeDerived: ()=>({}), minWidth: 860, semLinhaEmBranco: true,
+    computeDerived: ()=>({}), minWidth: 860, semLinhaEmBranco: true, cardsNoCelular: true,
     formTitle:'Novo lançamento', formButton:'Salvar lançamento',
     columns: [
       {key:'data', label:'Data', type:'date', formDefault: hojeISO},
@@ -1685,7 +1703,7 @@ function buildDieselEstoqueCfg(){
     caption:'Cada vez que encher (ou medir) o tanque, lance a data e a quantidade total que ficou no tanque. O "Usado" é a soma do Controle Diesel dessa data até o próximo lançamento, e o saldo é Qtd Total − Usado.',
     rows: diesel.estoque, exportName:'estoque_diesel', exportFileName:`Estoque_Diesel_${hojeISO()}.xlsx`,
     computeDerived: r=>calcEstoqueDiesel().porId[r.id] || {usado:0, saldo:0},
-    minWidth: 560, semLinhaEmBranco: true,
+    minWidth: 560, semLinhaEmBranco: true, cardsNoCelular: true,
     formTitle:'Novo lançamento do tanque', formButton:'Salvar',
     columns: [
       {key:'data', label:'Data', type:'date', formDefault: hojeISO},
