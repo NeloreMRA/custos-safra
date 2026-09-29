@@ -1686,21 +1686,18 @@ function buildDieselEstoqueCfg(){
     caption:'Cada vez que encher o tanque, lance a data e quantos litros entraram. O "Usado" é a soma do Controle Diesel dessa data até o próximo abastecimento, e o saldo passa pra linha seguinte.',
     rows: diesel.estoque, exportName:'estoque_diesel', exportFileName:`Estoque_Diesel_${hojeISO()}.xlsx`,
     computeDerived: r=>calcEstoqueDiesel().porId[r.id] || {saldoAnterior:0, disponivel:0, usado:0, saldo:0},
-    minWidth: 900, semLinhaEmBranco: true,
+    minWidth: 760, semLinhaEmBranco: true,
     formTitle:'Novo abastecimento do tanque', formButton:'Salvar abastecimento',
     columns: [
       {key:'data', label:'Data', type:'date', formDefault: hojeISO},
       {key:'entrada', label:'Qtd Abastecida', type:'number', unit:'L'},
-      {key:'estacao', label:'Estação', type:'select', optionsFn: r=>opcoesDiesel('estacoes', r, 'estacao'),
-        formDefault: ()=>{ const u = lsGet('dieselUltimaEstacao'); return diesel.estacoes.includes(u) ? u : (diesel.estacoes[0]||''); }},
       {key:'saldoAnterior', label:'Saldo Anterior', derived:true, unit:'L'},
       {key:'disponivel', label:'Qtd Disponível', derived:true, unit:'L'},
       {key:'usado', label:'Usado', derived:true, unit:'L'},
       {key:'saldo', label:'Saldo', derived:true, unit:'L'},
     ],
-    newRow: ()=>({id:novoIdDiesel('e'), data:hojeISO(), entrada:'', estacao:'', criadoEm:Date.now(), criadoPor:usuarioAtual()}),
-    validate: r=> !r.data ? 'Informe a data.' : !(Number(r.entrada)>0) ? 'Informe quantos litros entraram no tanque.' : !r.estacao ? 'Escolha a estação.' : '',
-    afterAdd: r=>{ if(r.estacao) lsSet('dieselUltimaEstacao', r.estacao); },
+    newRow: ()=>({id:novoIdDiesel('e'), data:hojeISO(), entrada:'', criadoEm:Date.now(), criadoPor:usuarioAtual()}),
+    validate: r=> !r.data ? 'Informe a data.' : !(Number(r.entrada)>0) ? 'Informe quantos litros entraram no tanque.' : '',
     prepareRow: r=>{ r.id = novoIdDiesel('e'); r.criadoEm = Date.now(); r.criadoPor = usuarioAtual(); },
     onRowChange: (r, imediato)=>salvarLinhaDiesel('estoque', r, imediato),
     onRowDelete: r=>excluirLinhaDiesel('estoque', r),
@@ -1756,9 +1753,6 @@ function pageDiesel(){
 }
 function pageDieselControle(){
   const cfg = buildDieselControleCfg();
-  const hoje = hojeISO(), mes = hoje.slice(0,7);
-  const litrosHoje = diesel.lancamentos.filter(l=>l.data===hoje).reduce((s,l)=>s+Number(l.litros||0),0);
-  const litrosMes = diesel.lancamentos.filter(l=>(l.data||'').slice(0,7)===mes).reduce((s,l)=>s+Number(l.litros||0),0);
   const est = calcEstoqueDiesel();
   const config = `
     <div class="panel no-print">
@@ -1779,11 +1773,8 @@ function pageDieselControle(){
     <div class="toolbar no-print"><button class="secondary" type="button" onclick="toggleDieselConfig()">⚙️ ${dieselConfigAberto?'Fechar cadastros':'Cadastrar máquinas, áreas e estações'}</button></div>
     ${dieselConfigAberto ? config : ''}
     <div class="no-print">${renderAddForm(cfg)}</div>`;
-  cfg.metricsHtml = `<div class="metrics">
-    <div class="metric"><div class="val">${fmt(litrosHoje,1)} L</div><div class="lbl">Usado hoje</div></div>
-    <div class="metric"><div class="val">${fmt(litrosMes,1)} L</div><div class="lbl">Usado no mês</div></div>
-    <div class="metric"><div class="val ${est.saldoAtual<0?'text-red':''}">${est.temEntradas?fmt(est.saldoAtual,1)+' L':'—'}</div><div class="lbl">Saldo no tanque</div></div>
-    <div class="metric"><div class="val">${diesel.lancamentos.length}</div><div class="lbl">Lançamentos</div></div>
+  cfg.metricsHtml = `<div class="metric" style="display:inline-block; min-width:170px; margin-bottom:12px;">
+    <div class="val ${est.saldoAtual<0?'text-red':''}">${est.temEntradas?fmt(est.saldoAtual,1)+' L':'—'}</div><div class="lbl">Saldo no tanque</div>
   </div>`;
   return renderTablePage(cfg);
 }
