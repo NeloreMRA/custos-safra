@@ -112,7 +112,36 @@
   .side-tool:disabled{opacity:.45; cursor:not-allowed;}
   .logout-btn{margin-top:auto;}
   body.perfil-diesel .admin-only{display:none !important;}
+  body.pagina-diesel #undoBtn{display:none !important;}
   .user-badge{font-size:11px; color:#cfc9b5; margin:-4px 0 12px; word-break:break-all;}
+  .nav-sep{height:1px; background:rgba(255,255,255,.15); margin:8px 4px;}
+  .lista-cad{border:1px solid var(--line); border-radius:8px; max-height:220px; overflow-y:auto;}
+  .item-cad{display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--line); font-size:13px;}
+  .item-cad:last-child{border-bottom:none;}
+  .form-inline{display:flex; gap:6px; margin-top:8px;}
+  .filtros{display:grid; grid-template-columns:repeat(3,minmax(0,220px)); gap:12px; align-items:end;}
+  table.simples th{padding:8px 10px;}
+  table.simples td.num{text-align:right;}
+  .aviso{background:#fff6e0; border:1px solid #f0d9a8; color:#7a5a17; border-radius:8px; padding:10px 12px; font-size:13px; margin-bottom:14px;}
+
+  /* CELULAR */
+  @media (max-width:760px){
+    body{flex-direction:column;}
+    aside{width:100%; padding:10px 12px; flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px; position:sticky; top:0; z-index:100;}
+    aside h1{margin:0; flex:1 1 auto;}
+    aside p.sub, .nav-sep{display:none;}
+    .user-badge{margin:0; flex:0 0 auto;}
+    .sync-status{margin:0; flex:1 1 100%;}
+    .safra-select{margin:0; flex:1 1 100%;}
+    .navbtn{padding:7px 10px; font-size:13px; white-space:nowrap; background:rgba(255,255,255,.06);}
+    .side-tool{width:auto; margin:0;}
+    .logout-btn{margin:0 0 0 auto;}
+    main{padding:14px 12px;}
+    .grid.cols-2, .grid.cols-3, .filtros{grid-template-columns:1fr;}
+    input, select{font-size:16px;}
+    .panel{padding:14px;}
+    h2{font-size:19px;}
+  }
 </style>
 </head>
 <body class="auth-pending">
@@ -139,6 +168,12 @@
   <button class="navbtn admin-only" data-page="vendas">📦 Silos e Vendas</button>
   <button class="navbtn admin-only" data-page="cadastros">⚙️ Cadastros</button>
   <button class="navbtn admin-only" data-page="safras">🌾 Cadastro de Safra</button>
+  <div class="nav-sep admin-only"></div>
+  <button class="navbtn" data-page="diesel-controle">⛽ Controle Diesel</button>
+  <button class="navbtn" data-page="diesel-estoque">🛢️ Estoque Diesel</button>
+  <button class="navbtn" data-page="diesel-resumo">📈 Resumo Diesel</button>
+  <div class="nav-sep admin-only"></div>
+  <button class="side-tool admin-only" type="button" onclick="exportBackupCompleto()">💾 Backup completo (Excel)</button>
   <button id="logoutBtn" class="side-tool logout-btn" type="button">Sair</button>
 </aside>
 <main id="main"></main>
@@ -331,7 +366,7 @@ function undoLastChange(){
 }
 
 document.addEventListener('keydown', e=>{
-  if((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z' && document.body.classList.contains('authenticated')){
+  if((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z' && document.body.classList.contains('authenticated') && !paginaDiesel(currentPage)){
     e.preventDefault();
     undoLastChange();
   }
@@ -406,7 +441,7 @@ function scheduleSave(immediate=false){
 function fmt(n, dec=2){ return Number(n||0).toLocaleString('pt-BR',{minimumFractionDigits:dec, maximumFractionDigits:dec}); }
 function fmtR(n){ return "R$ " + fmt(n,2); }
 function fmtPct(n){ return fmt((n||0)*100,1) + "%"; }
-function esc(v){ return (v===undefined||v===null) ? "" : String(v).replace(/"/g,"&quot;"); }
+function esc(v){ return (v===undefined||v===null) ? "" : String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 function pctToFraction(percentVal){ const p = Number(percentVal)||0; return Math.round(p*100)/10000; }
 function fractionToPercentDisplay(frac){ return Math.round((frac||0)*10000)/100; }
 
@@ -429,7 +464,15 @@ document.getElementById('safra-selector').addEventListener('change', e=>{ state.
 function render(){
   closeFilterMenu();
   const main = document.getElementById('main');
-  if(perfilDiesel){ main.innerHTML = pageSemAcesso(); return; }
+  if(perfilDiesel && !paginaDiesel(currentPage)) currentPage = 'diesel-controle';
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.page===currentPage));
+  document.body.classList.toggle('pagina-diesel', paginaDiesel(currentPage));
+  if(paginaDiesel(currentPage)){
+    main.innerHTML = pageDiesel();
+    bindStaticEvents();
+    if(!perfilDiesel){ refreshSafraSelector(); scheduleSave(); }
+    return;
+  }
   refreshSafraSelector();
   if(currentPage==="dashboard") main.innerHTML = pageDashboard();
   else if(currentPage==="colheita") main.innerHTML = pageColheita();
@@ -795,14 +838,14 @@ function renderTablePage(cfg){
     <div class="caption">${cfg.caption}</div>
     ${cfg.formHtml || ''}
     <div class="toolbar no-print">
-      <button class="secondary" onclick="addTableRow('${cfg.tableKey}')">+ Nova linha em branco</button>
+      ${cfg.semLinhaEmBranco ? '' : `<button class="secondary" onclick="addTableRow('${cfg.tableKey}')">+ Nova linha em branco</button>`}
       <button class="secondary" onclick="exportTable('${cfg.tableKey}')">⬇️ Exportar Excel</button>
       <button class="secondary" onclick="window.print()">🖨️ Imprimir</button>
     </div>
     ${cfg.metricsHtml || ''}
     <div class="panel" style="padding:0;">
       <div class="table-wrap">
-        <table id="tbl-${cfg.tableKey}">
+        <table id="tbl-${cfg.tableKey}" ${cfg.minWidth?`style="min-width:${cfg.minWidth}px;"`:''}>
           <thead><tr>${theadCols}</tr></thead>
           <tbody id="tbody-${cfg.tableKey}"></tbody>
         </table>
@@ -848,12 +891,13 @@ function tableCellHtml(cfg, row, idx, col){
   return `<td><input type="text" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${esc(row[col.key])}" oninput="onCellEdit(this,'${cfg.tableKey}')"></td>`;
 }
 function onCellEditCheckbox(el, tableKey){
-  recordUndo();
+  const cfg = tableRegistry[tableKey];
+  if(!cfg.onRowChange) recordUndo();
   const idx = Number(el.dataset.idx);
   const field = el.dataset.field;
   const row = tableRowsVisible[tableKey][idx];
   row[field] = el.checked;
-  scheduleSave();
+  if(cfg.onRowChange) cfg.onRowChange(row); else scheduleSave();
 }
 
 let tableRowsVisible = {};
@@ -888,7 +932,7 @@ function refreshDependentSelects(cfg, row, tr, changedField){
 }
 
 function onCellEdit(el, tableKey){
-  recordUndo();
+  if(!tableRegistry[tableKey].onRowChange) recordUndo();
   const idx = Number(el.dataset.idx);
   const field = el.dataset.field;
   const row = tableRowsVisible[tableKey][idx];
@@ -929,18 +973,25 @@ else if(el.tagName==='INPUT' && el.type==='number'){
       else display = fmt(v) + (col.unit ? ' '+col.unit : '');
       tr.children[ci].textContent = display;
     }
-  });  scheduleSave();
+  });
+  if(cfg.onRowChange) cfg.onRowChange(row); else scheduleSave();
 }
 function addTableRow(tableKey){
-  recordUndo();
   const cfg = tableRegistry[tableKey];
-  cfg.rows.push(cfg.newRow());
+  if(!cfg.onRowChange) recordUndo();
+  const row = cfg.newRow();
+  cfg.rows.push(row);
+  if(cfg.onRowChange) cfg.onRowChange(row, true);
   render();
 }
 function deleteTableRow(tableKey, idx){
-  recordUndo();
   const cfg = tableRegistry[tableKey];
   const row = tableRowsVisible[tableKey][idx];
+  if(cfg.onRowDelete){
+    if(confirm('Excluir esta linha? Não dá pra desfazer.')) cfg.onRowDelete(row);
+    return;
+  }
+  recordUndo();
   const realIdx = cfg.rows.indexOf(row);
   if(realIdx>-1) cfg.rows.splice(realIdx,1);
   render();
@@ -950,27 +1001,27 @@ function deleteTableRow(tableKey, idx){
 function renderAddForm(cfg){
   const editableCols = cfg.columns.filter(c=>!c.derived);
   const fields = editableCols.map(c=>{
+    const def = c.formDefault ? c.formDefault() : '';
     if(c.type==='select'){
       const optsList = c.optionsFn ? c.optionsFn(null) : [];
-      const opts = optsList.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');
+      const opts = optsList.map(o=>`<option value="${esc(o)}" ${o===def?'selected':''}>${esc(o)}</option>`).join('');
       return `<div><label>${c.label}</label><select name="${c.key}"><option value="">—</option>${opts}</select></div>`;
     }
-    if(c.type==='date') return `<div><label>${c.label}</label><input type="date" name="${c.key}"></div>`;
+    if(c.type==='date') return `<div><label>${c.label}</label><input type="date" name="${c.key}" value="${esc(def)}"></div>`;
     if(c.type==='pctinput') return `<div><label>${c.label} (%)</label><input type="number" step="0.1" name="${c.key}" placeholder="Ex: 15,9"></div>`;
-    if(c.type==='number') return `<div><label>${c.label}${c.unit?` (${c.unit})`:''}</label><input type="number" step="any" name="${c.key}"></div>`;
+    if(c.type==='number') return `<div><label>${c.label}${c.unit?` (${c.unit})`:''}</label><input type="number" step="any" inputmode="decimal" name="${c.key}" value="${esc(def)}"></div>`;
     if(c.type==='checkbox') return `<div style="display:flex; align-items:flex-end; padding-bottom:8px;"><label style="display:flex; align-items:center; gap:6px; margin:0;"><input type="checkbox" name="${c.key}" style="width:auto;"> ${c.label}</label></div>`;
-    return `<div><label>${c.label}</label><input type="text" name="${c.key}"></div>`;
+    return `<div><label>${c.label}</label><input type="text" name="${c.key}" value="${esc(def)}"></div>`;
   }).join('');
   return `
     <div class="panel">
-      <p class="section-title">Adicionar registro</p>
+      <p class="section-title">${cfg.formTitle || 'Adicionar registro'}</p>
       <div class="grid cols-3" id="addform-${cfg.tableKey}">${fields}</div>
-      <button class="primary" style="margin-top:14px;" onclick="submitAddForm('${cfg.tableKey}')" type="button">Adicionar</button>
+      <button class="primary" style="margin-top:14px;" onclick="submitAddForm('${cfg.tableKey}')" type="button">${cfg.formButton || 'Adicionar'}</button>
     </div>
   `;
 }
 function submitAddForm(tableKey){
-  recordUndo();
   const cfg = tableRegistry[tableKey];
   const wrap = document.getElementById('addform-'+tableKey);
   const row = {};
@@ -981,7 +1032,15 @@ function submitAddForm(tableKey){
     if(c.type==='pctinput') v = pctToFraction(v);
     row[c.key] = v;
   });
+  if(cfg.validate){
+    const erro = cfg.validate(row);
+    if(erro){ alert(erro); return; }
+  }
+  if(cfg.prepareRow) cfg.prepareRow(row);
+  if(!cfg.onRowChange) recordUndo();
   cfg.rows.push(row);
+  if(cfg.onRowChange) cfg.onRowChange(row, true);
+  if(cfg.afterAdd) cfg.afterAdd(row);
   render();
 }
 
@@ -1000,6 +1059,7 @@ function styleSheet(ws, columns){
     col.width = Math.max(14, c.label.length+4);
     if(c.type==='money') col.numFmt = '"R$" #,##0.00';
     else if(c.type==='pct' || c.type==='pctinput') col.numFmt = '0.0%';
+    else if(c.type==='date') col.numFmt = 'dd/mm/yyyy';
     else if(c.type==='number' || c.derived) col.numFmt = '#,##0.00';
     col.alignment = {vertical:'middle'};
   });
@@ -1016,6 +1076,10 @@ async function addSheetForTable(workbook, sheetName, columns, rows, computeDeriv
     columns.forEach(c=>{
       let v = c.derived ? computeDerived(r)[c.key] : r[c.key];
       if(c.type==='pct' || c.type==='pctinput') v = Number(v)||0;
+      if(c.type==='date' && typeof v==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v)){
+        const [y,m,d] = v.split('-').map(Number);
+        v = new Date(Date.UTC(y,m-1,d));
+      }
       rowData[c.key] = v;
     });
     ws.addRow(rowData);
@@ -1028,7 +1092,7 @@ async function exportTable(tableKey){
   const wb = new ExcelJS.Workbook();
   await addSheetForTable(wb, cfg.title.replace(/[^\w\sÀ-ÿ-]/g,'').trim(), cfg.columns, cfg.rows, cfg.computeDerived);
   const buf = await wb.xlsx.writeBuffer();
-  downloadBuffer(buf, `${cfg.exportName}_${S().nome.replace(/\//g,'-')}.xlsx`);
+  downloadBuffer(buf, cfg.exportFileName || `${cfg.exportName}_${S().nome.replace(/\//g,'-')}.xlsx`);
 }
 async function exportSafraCompleta(){
   const s = S();
@@ -1348,7 +1412,7 @@ function bindExcelEnterNavigation(){
       // No último registro, Enter cria uma nova linha e continua na mesma coluna.
       if(!e.shiftKey){
         const cfg = tableRegistry[tableKey];
-        if(cfg && typeof cfg.newRow==='function'){
+        if(cfg && typeof cfg.newRow==='function' && !cfg.semLinhaEmBranco){
           pendingCellFocus = {tableKey, field, rowIdx: tableRowsVisible[tableKey].length};
           recordUndo();
           cfg.rows.push(cfg.newRow());
@@ -1405,6 +1469,13 @@ function bindStaticEvents(){
     });
   });
 
+  // Estoque: ao terminar de editar uma linha, recalcula o saldo das linhas seguintes.
+  const tbEstoque = document.getElementById('tbody-diesel-estoque');
+  if(tbEstoque && tbEstoque.dataset.recalcBound!=='1'){
+    tbEstoque.dataset.recalcBound = '1';
+    tbEstoque.addEventListener('change', ()=>render());
+  }
+
   bindExcelEnterNavigation();
 }
 
@@ -1430,8 +1501,430 @@ function ehUsuarioDiesel(user){
   const email = (user && user.email || '').toLowerCase();
   return USUARIOS_DIESEL.some(e=>loginParaEmail(e)===email);
 }
-function pageSemAcesso(){
-  return `<div class="panel"><h2>⛽ Diesel</h2><p>Bem-vindo! As abas de diesel ainda estão sendo preparadas e aparecerão aqui em breve.</p></div>`;
+
+// =================== DIESEL ===================
+// Fica em custos-safra/diesel (separado dos custos). Cada lançamento é salvo
+// individualmente (lancamentos.<id> / estoque.<id>), então duas pessoas lançando
+// ao mesmo tempo não apagam o registro uma da outra.
+const DIESEL_PADRAO = {
+  maquinas: ["Uniport","Colheitadeira","John Deere 7230","MF650","MF265","MF4283","Voltra BM125","Terceiros","Outros"],
+  areas: ["Lavoura","Pecuária","Fazenda","Outros"],
+  estacoes: ["Lavoura - Milho 25/26"],
+};
+const DIESEL_LISTAS = [['maquinas','Máquinas','Nova máquina'],['areas','Áreas','Nova área'],['estacoes','Estações','Nova estação']];
+let diesel = {maquinas:[...DIESEL_PADRAO.maquinas], areas:[...DIESEL_PADRAO.areas], estacoes:[...DIESEL_PADRAO.estacoes], lancamentos:[], estoque:[]};
+let dieselRef = null, dieselUnsub = null, dieselPronto = false;
+const dieselTimers = {}, dieselPendentes = new Set();
+let dieselConfigAberto = false;
+let dieselFiltro = {de:'', ate:'', estacao:''};
+
+function paginaDiesel(p){ return String(p||'').startsWith('diesel-'); }
+function hojeISO(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+function novoIdDiesel(prefixo){ return prefixo + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function fmtData(iso){ return /^\d{4}-\d{2}-\d{2}$/.test(iso||'') ? iso.split('-').reverse().join('/') : ''; }
+function lsGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function usuarioAtual(){ const u = firebase.auth && firebase.auth().currentUser; return u ? loginExibicao(u.email) : ''; }
+// Opções da lista + o valor atual da linha (caso tenha sido removido do cadastro depois).
+function opcoesDiesel(lista, row, key){
+  const itens = [...diesel[lista]];
+  if(row && row[key] && !itens.includes(row[key])) itens.push(row[key]);
+  return itens;
+}
+
+function dieselDocParaLocal(data){
+  const lista = m => Object.entries(m||{}).map(([id,r])=>({...r, id}));
+  return {
+    maquinas: Array.isArray(data.maquinas) ? data.maquinas : [...DIESEL_PADRAO.maquinas],
+    areas: Array.isArray(data.areas) ? data.areas : [...DIESEL_PADRAO.areas],
+    estacoes: Array.isArray(data.estacoes) ? data.estacoes : [...DIESEL_PADRAO.estacoes],
+    lancamentos: lista(data.lancamentos),
+    estoque: lista(data.estoque),
+  };
+}
+function dieselAssinatura(d){
+  const linhas = a => a.map(r=>JSON.stringify(Object.keys(r).sort().map(k=>[k,r[k]]))).sort();
+  return JSON.stringify([d.maquinas, d.areas, d.estacoes, linhas(d.lancamentos), linhas(d.estoque)]);
+}
+
+function iniciarDiesel(){
+  pararDiesel();
+  dieselRef = firebase.firestore().collection('custos-safra').doc('diesel');
+  dieselUnsub = dieselRef.onSnapshot(snap=>{
+    if(!snap.exists){
+      dieselRef.set({...DIESEL_PADRAO, lancamentos:{}, estoque:{}}, {merge:true})
+        .catch(err=>{ console.error(err); setSyncStatus('🔴 Erro ao criar diesel', 'err'); });
+      return;
+    }
+    const remoto = dieselDocParaLocal(snap.data());
+    // Linhas que ainda estão sendo digitadas/enviadas ficam com a versão local.
+    ['lancamentos','estoque'].forEach(col=>{
+      diesel[col].forEach(r=>{
+        if(!dieselPendentes.has(r.id)) return;
+        const i = remoto[col].findIndex(x=>x.id===r.id);
+        if(i>-1) remoto[col][i] = r; else remoto[col].push(r);
+      });
+    });
+    const primeiraVez = !dieselPronto;
+    const mudou = dieselAssinatura(remoto) !== dieselAssinatura(diesel);
+    if(mudou) diesel = remoto;
+    dieselPronto = true;
+    if(perfilDiesel && !snap.metadata.hasPendingWrites) setSyncStatus('🟢 Sincronizado', 'ok');
+    if((mudou || primeiraVez) && paginaDiesel(currentPage)) render();
+  }, err=>{
+    console.error(err);
+    setSyncStatus('🔴 Sem acesso ao diesel', 'err');
+  });
+}
+function pararDiesel(){
+  if(dieselUnsub){ dieselUnsub(); dieselUnsub = null; }
+  Object.keys(dieselTimers).forEach(id=>clearTimeout(dieselTimers[id]));
+  dieselPendentes.clear();
+  dieselRef = null; dieselPronto = false;
+  diesel = {maquinas:[...DIESEL_PADRAO.maquinas], areas:[...DIESEL_PADRAO.areas], estacoes:[...DIESEL_PADRAO.estacoes], lancamentos:[], estoque:[]};
+}
+function salvarLinhaDiesel(col, row, imediato){
+  if(!dieselRef) return;
+  dieselPendentes.add(row.id);
+  clearTimeout(dieselTimers[row.id]);
+  if(perfilDiesel) setSyncStatus('🟡 Salvando...', 'local');
+  dieselTimers[row.id] = setTimeout(()=>{
+    dieselTimers[row.id] = null;
+    const {id, ...dados} = row;
+    dieselRef.update({[`${col}.${id}`]: JSON.parse(JSON.stringify(dados))})
+      .then(()=>{
+        if(!dieselTimers[id]) dieselPendentes.delete(id);
+        if(perfilDiesel) setSyncStatus('🟢 Sincronizado', 'ok');
+      })
+      .catch(err=>{ console.error(err); dieselPendentes.delete(id); setSyncStatus('🔴 Erro ao salvar diesel', 'err'); alert('Não foi possível salvar. Confira a internet e tente de novo.'); });
+  }, imediato ? 0 : 500);
+}
+function excluirLinhaDiesel(col, row){
+  if(!dieselRef) return;
+  clearTimeout(dieselTimers[row.id]);
+  dieselTimers[row.id] = null;
+  dieselPendentes.delete(row.id);
+  const i = diesel[col].indexOf(row);
+  if(i>-1) diesel[col].splice(i,1);
+  dieselRef.update({[`${col}.${row.id}`]: firebase.firestore.FieldValue.delete()})
+    .catch(err=>{ console.error(err); setSyncStatus('🔴 Erro ao excluir', 'err'); });
+  render();
+}
+function addItemDiesel(lista, valor){
+  valor = String(valor||'').trim();
+  if(!valor || !dieselRef) return;
+  if(diesel[lista].some(x=>x.toLowerCase()===valor.toLowerCase())){ alert('Esse item já está cadastrado.'); return; }
+  diesel[lista].push(valor);
+  dieselRef.update({[lista]: firebase.firestore.FieldValue.arrayUnion(valor)})
+    .catch(err=>{ console.error(err); setSyncStatus('🔴 Erro ao salvar', 'err'); });
+  render();
+}
+function removerItemDiesel(lista, i){
+  if(perfilDiesel || !dieselRef) return;
+  const valor = diesel[lista][i];
+  if(valor===undefined || !confirm(`Remover "${valor}" da lista? Os lançamentos antigos continuam com esse nome.`)) return;
+  diesel[lista].splice(i,1);
+  dieselRef.update({[lista]: firebase.firestore.FieldValue.arrayRemove(valor)})
+    .catch(err=>{ console.error(err); setSyncStatus('🔴 Erro ao salvar', 'err'); });
+  render();
+}
+function toggleDieselConfig(){ dieselConfigAberto = !dieselConfigAberto; render(); }
+function ordenarDiesel(){
+  const porCriacao = (a,b)=>(a.criadoEm||0)-(b.criadoEm||0);
+  diesel.lancamentos.sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')) || -porCriacao(a,b));
+  diesel.estoque.sort((a,b)=>String(a.data||'').localeCompare(String(b.data||'')) || porCriacao(a,b));
+}
+
+// Estoque: cada abastecimento abre um período; o "Usado" é o que saiu do
+// Controle Diesel desde essa data até o próximo abastecimento.
+function calcEstoqueDiesel(){
+  const entradas = diesel.estoque.filter(e=>e.data).slice()
+    .sort((a,b)=>a.data.localeCompare(b.data) || (a.criadoEm||0)-(b.criadoEm||0));
+  const usos = diesel.lancamentos.filter(l=>l.data);
+  const porId = {};
+  let saldo = 0;
+  entradas.forEach((e,i)=>{
+    const ini = e.data, fim = entradas[i+1] ? entradas[i+1].data : null;
+    const usado = usos.filter(l=>l.data>=ini && (!fim || l.data<fim)).reduce((s,l)=>s+Number(l.litros||0),0);
+    const saldoAnterior = saldo;
+    const disponivel = saldoAnterior + Number(e.entrada||0);
+    saldo = disponivel - usado;
+    porId[e.id] = {saldoAnterior, disponivel, usado, saldo};
+  });
+  const primeira = entradas[0] ? entradas[0].data : null;
+  const usadoAntes = usos.filter(l=>!primeira || l.data<primeira).reduce((s,l)=>s+Number(l.litros||0),0);
+  return {porId, saldoAtual: saldo, usadoAntes, temEntradas: entradas.length>0};
+}
+
+function buildDieselControleCfg(){
+  return {
+    tableKey:'diesel-controle', title:'⛽ Controle Diesel',
+    caption:'Lance cada abastecimento de máquina. As linhas abaixo podem ser corrigidas direto na tabela; clique no ▾ do cabeçalho para filtrar.',
+    rows: diesel.lancamentos, exportName:'controle_diesel', exportFileName:`Controle_Diesel_${hojeISO()}.xlsx`,
+    computeDerived: ()=>({}), minWidth: 860, semLinhaEmBranco: true,
+    formTitle:'Novo lançamento', formButton:'Salvar lançamento',
+    columns: [
+      {key:'data', label:'Data', type:'date', formDefault: hojeISO},
+      {key:'maquina', label:'Máquina', type:'select', optionsFn: r=>opcoesDiesel('maquinas', r, 'maquina')},
+      {key:'litros', label:'Qtd Litros', type:'number', unit:'L'},
+      {key:'servico', label:'Serviço Realizado', type:'text'},
+      {key:'area', label:'Área', type:'select', optionsFn: r=>opcoesDiesel('areas', r, 'area')},
+      {key:'estacao', label:'Estação', type:'select', optionsFn: r=>opcoesDiesel('estacoes', r, 'estacao'),
+        formDefault: ()=>{ const u = lsGet('dieselUltimaEstacao'); return diesel.estacoes.includes(u) ? u : (diesel.estacoes[0]||''); }},
+    ],
+    newRow: ()=>({id:novoIdDiesel('l'), data:hojeISO(), maquina:'', litros:'', servico:'', area:'', estacao:'', criadoEm:Date.now(), criadoPor:usuarioAtual()}),
+    validate: r=> !r.data ? 'Informe a data.' : !r.maquina ? 'Escolha a máquina.' : !(Number(r.litros)>0) ? 'Informe a quantidade de litros.' : !r.area ? 'Escolha a área.' : '',
+    prepareRow: r=>{ r.id = novoIdDiesel('l'); r.criadoEm = Date.now(); r.criadoPor = usuarioAtual(); },
+    afterAdd: r=>{ if(r.estacao) lsSet('dieselUltimaEstacao', r.estacao); },
+    onRowChange: (r, imediato)=>salvarLinhaDiesel('lancamentos', r, imediato),
+    onRowDelete: r=>excluirLinhaDiesel('lancamentos', r),
+  };
+}
+function buildDieselEstoqueCfg(){
+  return {
+    tableKey:'diesel-estoque', title:'🛢️ Estoque Diesel',
+    caption:'Cada vez que encher o tanque, lance a data e quantos litros entraram. O "Usado" é a soma do Controle Diesel dessa data até o próximo abastecimento, e o saldo passa pra linha seguinte.',
+    rows: diesel.estoque, exportName:'estoque_diesel', exportFileName:`Estoque_Diesel_${hojeISO()}.xlsx`,
+    computeDerived: r=>calcEstoqueDiesel().porId[r.id] || {saldoAnterior:0, disponivel:0, usado:0, saldo:0},
+    minWidth: 760, semLinhaEmBranco: true,
+    formTitle:'Novo abastecimento do tanque', formButton:'Salvar abastecimento',
+    columns: [
+      {key:'data', label:'Data', type:'date', formDefault: hojeISO},
+      {key:'entrada', label:'Qtd Abastecida', type:'number', unit:'L'},
+      {key:'saldoAnterior', label:'Saldo Anterior', derived:true, unit:'L'},
+      {key:'disponivel', label:'Qtd Disponível', derived:true, unit:'L'},
+      {key:'usado', label:'Usado', derived:true, unit:'L'},
+      {key:'saldo', label:'Saldo', derived:true, unit:'L'},
+    ],
+    newRow: ()=>({id:novoIdDiesel('e'), data:hojeISO(), entrada:'', criadoEm:Date.now(), criadoPor:usuarioAtual()}),
+    validate: r=> !r.data ? 'Informe a data.' : !(Number(r.entrada)>0) ? 'Informe quantos litros entraram no tanque.' : '',
+    prepareRow: r=>{ r.id = novoIdDiesel('e'); r.criadoEm = Date.now(); r.criadoPor = usuarioAtual(); },
+    onRowChange: (r, imediato)=>salvarLinhaDiesel('estoque', r, imediato),
+    onRowDelete: r=>excluirLinhaDiesel('estoque', r),
+  };
+}
+
+function dieselLancamentosFiltrados(){
+  const f = dieselFiltro;
+  return diesel.lancamentos.filter(l=>
+    (!f.de || (l.data||'')>=f.de) && (!f.ate || (l.data||'')<=f.ate) && (!f.estacao || l.estacao===f.estacao));
+}
+function agruparDiesel(lancs, chave){
+  const m = {};
+  lancs.forEach(l=>{
+    const nome = String(l[chave]||'').trim() || '(sem informação)';
+    if(!m[nome]) m[nome] = {nome, qtd:0, litros:0};
+    m[nome].qtd += 1;
+    m[nome].litros += Number(l.litros||0);
+  });
+  const total = lancs.reduce((s,l)=>s+Number(l.litros||0),0);
+  return Object.values(m).map(r=>({...r, pct: total ? r.litros/total : 0})).sort((a,b)=>b.litros-a.litros);
+}
+function descricaoFiltroDiesel(){
+  const f = dieselFiltro, p = [];
+  if(f.de || f.ate) p.push(`Período: ${f.de?fmtData(f.de):'início'} a ${f.ate?fmtData(f.ate):'hoje'}`);
+  else p.push('Período: todos os lançamentos');
+  p.push(`Estação: ${f.estacao || 'todas'}`);
+  return p.join(' · ');
+}
+function setFiltroDiesel(campo, valor){ dieselFiltro[campo] = valor; render(); }
+function limparFiltroDiesel(){ dieselFiltro = {de:'', ate:'', estacao:''}; render(); }
+
+function tabelaResumoDiesel(titulo, rotulo, linhas){
+  const total = linhas.reduce((s,r)=>s+r.litros,0), qtd = linhas.reduce((s,r)=>s+r.qtd,0);
+  return `
+    <div class="panel">
+      <p class="section-title">${titulo}</p>
+      ${linhas.length ? `
+      <div class="table-wrap"><table class="simples" style="min-width:0;">
+        <tr><th>${rotulo}</th><th>Lançamentos</th><th>Litros</th><th>% do total</th></tr>
+        ${linhas.map(r=>`<tr><td class="readonly">${esc(r.nome)}</td><td class="readonly num">${r.qtd}</td><td class="readonly num">${fmt(r.litros,1)} L</td><td class="readonly num">${fmtPct(r.pct)}</td></tr>`).join('')}
+        <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly num"><strong>${qtd}</strong></td><td class="readonly num"><strong>${fmt(total,1)} L</strong></td><td class="readonly num"><strong>${linhas.length?'100,0%':'—'}</strong></td></tr>
+      </table></div>` : `<div class="empty">Nenhum lançamento no filtro escolhido.</div>`}
+    </div>`;
+}
+
+function pageDiesel(){
+  if(!dieselPronto) return `<h2>⛽ Diesel</h2><div class="panel"><div class="empty">Carregando dados do diesel...</div></div>`;
+  ordenarDiesel();
+  if(currentPage==='diesel-estoque') return pageDieselEstoque();
+  if(currentPage==='diesel-resumo') return pageDieselResumo();
+  return pageDieselControle();
+}
+function pageDieselControle(){
+  const cfg = buildDieselControleCfg();
+  const hoje = hojeISO(), mes = hoje.slice(0,7);
+  const litrosHoje = diesel.lancamentos.filter(l=>l.data===hoje).reduce((s,l)=>s+Number(l.litros||0),0);
+  const litrosMes = diesel.lancamentos.filter(l=>(l.data||'').slice(0,7)===mes).reduce((s,l)=>s+Number(l.litros||0),0);
+  const est = calcEstoqueDiesel();
+  const config = `
+    <div class="panel no-print">
+      <p class="section-title">Cadastros do diesel</p>
+      <div class="grid cols-3">
+        ${DIESEL_LISTAS.map(([k,titulo,ph])=>`
+          <div>
+            <label>${titulo}</label>
+            <div class="lista-cad">${diesel[k].map((v,i)=>`<div class="item-cad"><span>${esc(v)}</span>${perfilDiesel?'':`<button class="ghost" type="button" onclick="removerItemDiesel('${k}',${i})">✕</button>`}</div>`).join('') || '<div class="item-cad empty">Nenhum item</div>'}</div>
+            <form class="form-inline" onsubmit="event.preventDefault(); addItemDiesel('${k}', this.item.value);">
+              <input name="item" placeholder="${ph}" required>
+              <button class="primary" type="submit">+</button>
+            </form>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  cfg.formHtml = `
+    <div class="toolbar no-print"><button class="secondary" type="button" onclick="toggleDieselConfig()">⚙️ ${dieselConfigAberto?'Fechar cadastros':'Cadastrar máquinas, áreas e estações'}</button></div>
+    ${dieselConfigAberto ? config : ''}
+    <div class="no-print">${renderAddForm(cfg)}</div>`;
+  cfg.metricsHtml = `<div class="metrics">
+    <div class="metric"><div class="val">${fmt(litrosHoje,1)} L</div><div class="lbl">Usado hoje</div></div>
+    <div class="metric"><div class="val">${fmt(litrosMes,1)} L</div><div class="lbl">Usado no mês</div></div>
+    <div class="metric"><div class="val ${est.saldoAtual<0?'text-red':''}">${est.temEntradas?fmt(est.saldoAtual,1)+' L':'—'}</div><div class="lbl">Saldo no tanque</div></div>
+    <div class="metric"><div class="val">${diesel.lancamentos.length}</div><div class="lbl">Lançamentos</div></div>
+  </div>`;
+  return renderTablePage(cfg);
+}
+function pageDieselEstoque(){
+  const cfg = buildDieselEstoqueCfg();
+  const est = calcEstoqueDiesel();
+  const totalEntrada = diesel.estoque.reduce((s,e)=>s+Number(e.entrada||0),0);
+  const totalUsado = diesel.lancamentos.reduce((s,l)=>s+Number(l.litros||0),0);
+  cfg.formHtml = `<div class="no-print">${renderAddForm(cfg)}</div>`;
+  cfg.metricsHtml = `
+    ${est.usadoAntes>0 ? `<div class="aviso">⚠️ ${fmt(est.usadoAntes,1)} L foram lançados no Controle Diesel antes do primeiro abastecimento cadastrado aqui e não entram no saldo. Lance o estoque inicial com uma data anterior se quiser que contem.</div>` : ''}
+    <div class="metrics">
+      <div class="metric"><div class="val ${est.saldoAtual<0?'text-red':''}">${fmt(est.saldoAtual,1)} L</div><div class="lbl">Saldo atual no tanque</div></div>
+      <div class="metric"><div class="val">${fmt(totalEntrada,1)} L</div><div class="lbl">Total abastecido</div></div>
+      <div class="metric"><div class="val">${fmt(totalUsado,1)} L</div><div class="lbl">Total usado (Controle Diesel)</div></div>
+      <div class="metric"><div class="val">${diesel.estoque.length}</div><div class="lbl">Abastecimentos do tanque</div></div>
+    </div>`;
+  return renderTablePage(cfg);
+}
+function pageDieselResumo(){
+  const lancs = dieselLancamentosFiltrados();
+  const total = lancs.reduce((s,l)=>s+Number(l.litros||0),0);
+  const estacoes = [...new Set([...diesel.estacoes, ...diesel.lancamentos.map(l=>l.estacao).filter(Boolean)])];
+  return `
+    <div class="toolbar no-print" style="justify-content:flex-end;">
+      <button class="secondary" onclick="window.print()">🖨️ Imprimir</button>
+      <button class="secondary" onclick="exportResumoDiesel()">⬇️ Exportar Excel</button>
+    </div>
+    <h2>📈 Resumo Diesel</h2>
+    <div class="caption">${esc(descricaoFiltroDiesel())}</div>
+    <div class="panel no-print">
+      <div class="filtros">
+        <div><label>De</label><input type="date" value="${esc(dieselFiltro.de)}" onchange="setFiltroDiesel('de', this.value)"></div>
+        <div><label>Até</label><input type="date" value="${esc(dieselFiltro.ate)}" onchange="setFiltroDiesel('ate', this.value)"></div>
+        <div><label>Estação</label><select onchange="setFiltroDiesel('estacao', this.value)"><option value="">Todas</option>${estacoes.map(e=>`<option value="${esc(e)}" ${e===dieselFiltro.estacao?'selected':''}>${esc(e)}</option>`).join('')}</select></div>
+      </div>
+      ${(dieselFiltro.de||dieselFiltro.ate||dieselFiltro.estacao) ? `<button class="ghost" style="margin-top:10px;" onclick="limparFiltroDiesel()">Limpar filtros</button>` : ''}
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="val">${fmt(total,1)} L</div><div class="lbl">Litros usados</div></div>
+      <div class="metric"><div class="val">${lancs.length}</div><div class="lbl">Lançamentos</div></div>
+    </div>
+    ${tabelaResumoDiesel('Litros por área', 'Área', agruparDiesel(lancs,'area'))}
+    ${tabelaResumoDiesel('Litros por máquina', 'Máquina', agruparDiesel(lancs,'maquina'))}
+    ${tabelaResumoDiesel('Litros por estação', 'Estação', agruparDiesel(lancs,'estacao'))}
+  `;
+}
+
+// ---------- Excel do diesel ----------
+const COLS_RESUMO = rotulo => [{key:'nome',label:rotulo},{key:'qtd',label:'Lançamentos',type:'number'},{key:'litros',label:'Litros',type:'number'},{key:'pct',label:'% do total',type:'pct'}];
+function addLinhaTotal(ws, valores){
+  const row = ws.addRow(valores);
+  row.eachCell((cell, colNumber)=>{
+    const fmtCol = ws.getColumn(colNumber).numFmt;
+    if(fmtCol) cell.numFmt = fmtCol;
+    cell.font = {bold:true};
+    cell.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FFF5F3EA'}};
+    cell.border = {top:{style:'medium', color:{argb:'FF38502E'}}};
+  });
+}
+async function addResumoDieselSheets(wb, lancs, nomeAba){
+  for(const [chave, rotulo, titulo] of [['area','Área','Por Área'],['maquina','Máquina','Por Máquina'],['estacao','Estação','Por Estação']]){
+    const linhas = agruparDiesel(lancs, chave);
+    const ws = await addSheetForTable(wb, nomeAba(titulo), COLS_RESUMO(rotulo), linhas, ()=>({}));
+    ws.getColumn(1).width = 28;
+    ws.getColumn(2).numFmt = '0';
+    addLinhaTotal(ws, ['TOTAL', linhas.reduce((s,r)=>s+r.qtd,0), linhas.reduce((s,r)=>s+r.litros,0), linhas.length?1:0]);
+  }
+}
+async function exportResumoDiesel(){
+  const wb = new ExcelJS.Workbook();
+  await addResumoDieselSheets(wb, dieselLancamentosFiltrados(), t=>`Diesel ${t}`);
+  const buf = await wb.xlsx.writeBuffer();
+  downloadBuffer(buf, `Resumo_Diesel_${hojeISO()}.xlsx`);
+}
+
+// ---------- Backup completo (todas as abas, todas as safras) ----------
+async function exportBackupCompleto(){
+  if(perfilDiesel) return;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Custos Safra · Fazenda Paraíso';
+  const indice = wb.addWorksheet('Índice');
+  const usados = new Set(['índice']);
+  const nomeAba = nome=>{
+    const base = String(nome).replace(/[:\\\/?*\[\]]/g,'-').slice(0,31);
+    let n = base, i = 2;
+    while(usados.has(n.toLowerCase())){ const suf = ` (${i++})`; n = base.slice(0,31-suf.length) + suf; }
+    usados.add(n.toLowerCase());
+    return n;
+  };
+  const itens = [];
+  const add = async (grupo, nome, columns, rows, cd)=>{
+    const n = nomeAba(nome);
+    await addSheetForTable(wb, n, columns, rows, cd || (()=>({})));
+    itens.push([grupo, n, rows.length]);
+  };
+
+  for(const s of Object.values(state.safras)){
+    const tag = s.nome.replace(/\//g,'-');
+    const col = buildColheitaCfg(s), adto = buildAdiantamentosCfg(s), vend = buildVendasCfg(s);
+    await add(s.nome, `${tag} Talhões`, [{key:'talhao',label:'Talhão'},{key:'area',label:'Área (ha)',type:'number'},{key:'variedade',label:'Variedade 1'},{key:'variedade2',label:'Variedade 2'},{key:'plantado',label:'Será Plantado?'}],
+      s.talhoes.map(t=>({...t, plantado: t.plantado?'Sim':'Não'})));
+    await add(s.nome, `${tag} Colheita`, col.columns, col.rows, col.computeDerived);
+    await add(s.nome, `${tag} Adiantamentos`, adto.columns, adto.rows, adto.computeDerived);
+    await add(s.nome, `${tag} Vendas`, vend.columns, vend.rows, vend.computeDerived);
+    const cad = Array.from({length:Math.max(s.locais.length, s.motoristas.length)}, (_,i)=>({local:s.locais[i]||'', motorista:s.motoristas[i]||''}));
+    await add(s.nome, `${tag} Cadastros`, [{key:'local',label:'Local de entrega'},{key:'motorista',label:'Motorista'}], cad);
+  }
+
+  if(dieselPronto){
+    ordenarDiesel();
+    const ctrl = buildDieselControleCfg(), est = buildDieselEstoqueCfg();
+    await add('Diesel', 'Diesel Controle', ctrl.columns, ctrl.rows, ctrl.computeDerived);
+    await add('Diesel', 'Diesel Estoque', est.columns, est.rows, est.computeDerived);
+    const antes = wb.worksheets.length;
+    await addResumoDieselSheets(wb, diesel.lancamentos, t=>nomeAba(`Diesel ${t}`));
+    wb.worksheets.slice(antes).forEach(ws=>itens.push(['Diesel', ws.name, ws.rowCount-2]));
+    const n = Math.max(diesel.maquinas.length, diesel.areas.length, diesel.estacoes.length);
+    await add('Diesel', 'Diesel Cadastros', [{key:'m',label:'Máquinas'},{key:'a',label:'Áreas'},{key:'e',label:'Estações'}],
+      Array.from({length:n}, (_,i)=>({m:diesel.maquinas[i]||'', a:diesel.areas[i]||'', e:diesel.estacoes[i]||''})));
+  }
+
+  // Capa / índice
+  indice.columns = [{width:30},{width:36},{width:14}];
+  indice.mergeCells('A1:C1');
+  indice.getCell('A1').value = 'Backup · Custos Safra · Fazenda Paraíso';
+  indice.getCell('A1').font = {bold:true, size:16, color:{argb:'FFFFFFFF'}};
+  indice.getCell('A1').fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FF38502E'}};
+  indice.getCell('A1').alignment = {vertical:'middle', horizontal:'left', indent:1};
+  indice.getRow(1).height = 32;
+  indice.mergeCells('A2:C2');
+  indice.getCell('A2').value = `Gerado em ${new Date().toLocaleString('pt-BR')}`;
+  indice.getCell('A2').font = {italic:true, color:{argb:'FF6B6B5C'}};
+  const cab = indice.getRow(4);
+  cab.values = ['Grupo','Aba','Linhas'];
+  cab.eachCell(c=>{ c.font={bold:true, color:{argb:'FFFFFFFF'}}; c.fill={type:'pattern', pattern:'solid', fgColor:{argb:'FF4C6B3F'}}; c.alignment={horizontal:'center'}; });
+  itens.forEach(([grupo, aba, linhas])=>{
+    const r = indice.addRow([grupo, {text:aba, hyperlink:`#'${aba.replace(/'/g,"''")}'!A1`}, linhas]);
+    r.getCell(2).font = {color:{argb:'FF1F5FA8'}, underline:true};
+    r.eachCell(c=>{ c.border = {bottom:{style:'hair', color:{argb:'FFE4E0D4'}}}; });
+  });
+
+  const buf = await wb.xlsx.writeBuffer();
+  downloadBuffer(buf, `Backup_Custos_Safra_${hojeISO()}.xlsx`);
 }
 
 // =================== LOGIN FIREBASE ===================
@@ -1471,14 +1964,17 @@ function initAuth(){
       document.body.classList.toggle('perfil-diesel', perfilDiesel);
       document.getElementById('user-badge').textContent = loginExibicao(user.email);
       showAuthState(true);
+      iniciarDiesel();
       if(perfilDiesel){
         // Funcionário do diesel nunca carrega nem grava os custos da safra.
-        setSyncStatus('🟢 Conectado', 'ok');
+        setSyncStatus('🟡 Conectando...', 'local');
+        currentPage = 'diesel-controle';
         render();
       }
       else if(!firebaseReady) initFirebase();
       else render();
     }else{
+      pararDiesel();
       perfilDiesel = false;
       document.body.classList.remove('perfil-diesel');
       document.getElementById('user-badge').textContent = '';
