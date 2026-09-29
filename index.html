@@ -111,6 +111,8 @@
   .side-tool:hover{background:rgba(255,255,255,.12);}
   .side-tool:disabled{opacity:.45; cursor:not-allowed;}
   .logout-btn{margin-top:auto;}
+  body.perfil-diesel .admin-only{display:none !important;}
+  .user-badge{font-size:11px; color:#cfc9b5; margin:-4px 0 12px; word-break:break-all;}
 </style>
 </head>
 <body class="auth-pending">
@@ -127,15 +129,16 @@
 <aside class="no-print">
   <h1>🌱 Custos Safra</h1>
   <p class="sub">Fazenda Paraíso</p>
+  <div id="user-badge" class="user-badge"></div>
   <div id="sync-status" class="sync-status local">⚪ Modo local</div>
-  <select class="safra-select" id="safra-selector"></select>
-  <button id="undoBtn" class="side-tool" type="button" onclick="undoLastChange()" disabled>↶ Desfazer (Ctrl+Z)</button>
-  <button class="navbtn active" data-page="dashboard">📊 Dashboard</button>
-  <button class="navbtn" data-page="colheita">🚜 Colheita</button>
-  <button class="navbtn" data-page="adiantamentos">💰 Adiantamentos</button>
-  <button class="navbtn" data-page="vendas">📦 Silos e Vendas</button>
-  <button class="navbtn" data-page="cadastros">⚙️ Cadastros</button>
-  <button class="navbtn" data-page="safras">🌾 Cadastro de Safra</button>
+  <select class="safra-select admin-only" id="safra-selector"></select>
+  <button id="undoBtn" class="side-tool admin-only" type="button" onclick="undoLastChange()" disabled>↶ Desfazer (Ctrl+Z)</button>
+  <button class="navbtn active admin-only" data-page="dashboard">📊 Dashboard</button>
+  <button class="navbtn admin-only" data-page="colheita">🚜 Colheita</button>
+  <button class="navbtn admin-only" data-page="adiantamentos">💰 Adiantamentos</button>
+  <button class="navbtn admin-only" data-page="vendas">📦 Silos e Vendas</button>
+  <button class="navbtn admin-only" data-page="cadastros">⚙️ Cadastros</button>
+  <button class="navbtn admin-only" data-page="safras">🌾 Cadastro de Safra</button>
   <button id="logoutBtn" class="side-tool logout-btn" type="button">Sair</button>
 </aside>
 <main id="main"></main>
@@ -425,8 +428,9 @@ document.getElementById('safra-selector').addEventListener('change', e=>{ state.
 
 function render(){
   closeFilterMenu();
-  refreshSafraSelector();
   const main = document.getElementById('main');
+  if(perfilDiesel){ main.innerHTML = pageSemAcesso(); return; }
+  refreshSafraSelector();
   if(currentPage==="dashboard") main.innerHTML = pageDashboard();
   else if(currentPage==="colheita") main.innerHTML = pageColheita();
   else if(currentPage==="adiantamentos") main.innerHTML = pageAdiantamentos();
@@ -1404,6 +1408,21 @@ function bindStaticEvents(){
   bindExcelEnterNavigation();
 }
 
+// =================== PERFIS DE ACESSO ===================
+// E-mails de funcionários que só enxergam as abas de diesel (nunca os custos da safra).
+// O bloqueio de verdade fica nas regras do Firestore; isto aqui só ajusta a tela.
+const USUARIOS_DIESEL = [
+  // "funcionario@exemplo.com",
+];
+let perfilDiesel = false;
+function ehUsuarioDiesel(user){
+  const email = (user && user.email || '').toLowerCase();
+  return USUARIOS_DIESEL.some(e=>e.toLowerCase()===email);
+}
+function pageSemAcesso(){
+  return `<div class="panel"><h2>⛽ Diesel</h2><p>Bem-vindo! As abas de diesel ainda estão sendo preparadas e aparecerão aqui em breve.</p></div>`;
+}
+
 // =================== LOGIN FIREBASE ===================
 function showAuthState(loggedIn){
   document.body.classList.remove('auth-pending','auth-logged-out','authenticated');
@@ -1437,10 +1456,21 @@ function initAuth(){
 
   firebase.auth().onAuthStateChanged(user=>{
     if(user){
+      perfilDiesel = ehUsuarioDiesel(user);
+      document.body.classList.toggle('perfil-diesel', perfilDiesel);
+      document.getElementById('user-badge').textContent = user.email || '';
       showAuthState(true);
-      if(!firebaseReady) initFirebase();
+      if(perfilDiesel){
+        // Funcionário do diesel nunca carrega nem grava os custos da safra.
+        setSyncStatus('🟢 Conectado', 'ok');
+        render();
+      }
+      else if(!firebaseReady) initFirebase();
       else render();
     }else{
+      perfilDiesel = false;
+      document.body.classList.remove('perfil-diesel');
+      document.getElementById('user-badge').textContent = '';
       showAuthState(false);
       clearUndoHistory();
       firebaseReady=false;
