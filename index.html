@@ -2160,7 +2160,7 @@ function pageDieselEstoque(){
     <div class="toolbar no-print">
       <button class="secondary" onclick="exportEstoqueDiesel()">⬇️ Exportar Excel</button>
       <button class="secondary" onclick="window.print()">🖨️ Imprimir</button>
-      <button class="secondary" onclick="toggleColunaEstacaoExtrato()">${mostrarEstacao ? '🙈 Esconder coluna Estação' : '👁 Mostrar coluna Estação'}</button>
+      <button class="secondary" onclick="toggleColunaEstacaoExtrato()">${mostrarEstacao ? 'Esconder coluna Estação' : 'Mostrar coluna Estação'}</button>
     </div>
     <p class="section-title">Extrato do tanque</p>
     ${filtroEst ? `<div class="aviso-filtro no-print">Filtrando estação: <b>${esc(nomeFiltroEst)}</b> · o saldo mostra só essa estação <button class="ghost" type="button" onclick="limparFiltroEstacaoExtrato()">limpar</button></div>` : ''}
