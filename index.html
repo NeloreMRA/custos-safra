@@ -139,16 +139,20 @@
   .col-resizer:hover, body.redimensionando .col-resizer:active{background:rgba(76,107,63,.35);}
   body.redimensionando, body.redimensionando *{cursor:col-resize !important; user-select:none;}
   td.td-acoes{white-space:nowrap; text-align:center; padding:0 4px;}
-  .sel-cb{width:auto !important; margin:0 6px 0 0; vertical-align:middle; cursor:pointer;}
-  th.th-sel{text-align:center;}
-  tr.linha-sel td{background:#eef3e8 !important;}
+  table.tbl-excel th, table.tbl-excel td{border:1px solid #e1ddd0;}
+  table.tbl-excel td.td-num, table.tbl-excel td.readonly.td-num{text-align:right;}
+  .cell-unit-junto{justify-content:flex-end; padding-right:8px;}
+  .cell-unit-junto input{text-align:right; padding:7px 3px 7px 6px !important; flex:0 1 auto !important; max-width:100%;}
+  .cell-unit-junto span{padding-right:0 !important; color:var(--ink) !important; font-size:12.5px !important;}
+  td.cel-sel, td.cel-sel input, td.cel-sel select{background:#dbe8d2 !important;}
+  td.cel-sel{outline:2px solid var(--green); outline-offset:-2px;}
+  .barra-excel{display:none; position:fixed; right:16px; bottom:14px; z-index:1500; gap:18px; align-items:center; background:var(--green-dark); color:#fff; padding:9px 16px; border-radius:8px; font-size:13px; box-shadow:0 6px 18px rgba(0,0,0,.2);}
+  .barra-excel.ativa{display:flex;}
+  .barra-excel strong{font-variant-numeric:tabular-nums;}
   tfoot tr.linha-total td{background:#f5f3ea; font-weight:700; padding:8px 10px; border-top:2px solid var(--green-dark); white-space:nowrap;}
   tfoot td.num{text-align:right;}
   tfoot td.total-rotulo small{font-weight:400; color:var(--ink-soft); margin-left:4px;}
   .panel-excel{width:fit-content; max-width:100%;}
-  .barra-soma{display:none;}
-  .barra-soma.ativa{display:flex; flex-wrap:wrap; gap:18px; align-items:center; padding:10px 14px; background:var(--focus); border-top:1px solid var(--line); font-size:13px; border-radius:0 0 10px 10px;}
-  .barra-soma button{margin-left:auto;}
 
   /* RESUMO DIESEL */
   .resumo-kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px;}
@@ -158,14 +162,16 @@
   .resumo-card{background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden;}
   .resumo-card h3{margin:0; padding:11px 12px; text-align:center; font-size:14.5px; background:var(--green-dark); color:#fff; letter-spacing:.2px;}
   table.resumo{width:100%; min-width:0; table-layout:fixed; font-size:13px;}
-  table.resumo th{padding:8px 12px; text-align:center; font-size:11.5px;}
-  table.resumo th:first-child, table.resumo td:first-child{text-align:left;}
-  table.resumo td{padding:8px 12px; border-right:none; vertical-align:middle;}
+  table.resumo th{text-align:left; font-size:11.5px;}
+  table.resumo th, table.resumo td{border:1px solid #e1ddd0;}
+  table.resumo td{padding:8px 12px; vertical-align:middle;}
+  table.resumo th{padding:0;}
+  table.resumo th .th-flex{padding:8px 6px 8px 12px;}
   table.resumo td.num{text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;}
   table.resumo .sub{display:block; font-size:11px; color:var(--ink-soft);}
   table.resumo .barra{height:6px; background:#ece8dc; border-radius:3px; margin-top:4px; overflow:hidden;}
   table.resumo .barra i{display:block; height:100%; background:var(--wheat); border-radius:3px;}
-  table.resumo tr.total td{font-weight:700; background:#f5f3ea; border-top:2px solid var(--green-dark);}
+  table.resumo tfoot td{font-weight:700; background:#f5f3ea; border-top:2px solid var(--green-dark);}
   .filtros-resumo{display:flex; flex-wrap:wrap; gap:12px; align-items:end;}
   .filtros-resumo > div{flex:1 1 170px; max-width:240px;}
 
@@ -210,8 +216,10 @@
     table.cards-cel tfoot td{display:block; width:auto; min-height:0; padding:0; border:none; background:none; font-weight:700; font-size:15px;}
     table.cards-cel tfoot td::before{display:none;}
     table.cards-cel tfoot td.vazio{display:none;}
-    table.cards-cel .sel-cb, .barra-soma{display:none !important;}
-    table.cards-cel tr.linha-sel td{background:transparent !important;}
+    .barra-excel{display:none !important;}
+    table.cards-cel td{border:none;}
+    .cell-unit-junto{justify-content:flex-start;}
+    .cell-unit-junto input{text-align:left;}
     .resumo-kpis{grid-template-columns:1fr 1fr 1fr; gap:8px;}
     .resumo-kpis .val{font-size:17px;}
     .resumo-kpis .metric{padding:10px 6px;}
@@ -538,6 +546,7 @@ document.getElementById('safra-selector').addEventListener('change', e=>{ state.
 
 function render(){
   closeFilterMenu();
+  limparSelecaoExcel();
   const main = document.getElementById('main');
   if(perfilDiesel && !paginaDiesel(currentPage)) currentPage = 'diesel-controle';
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.page===currentPage));
@@ -908,12 +917,10 @@ function renderTablePage(cfg){
     const arrow = ts.sortKey===c.key ? (ts.sortDir>0?' ▲':' ▼') : '';
     const resizer = excel ? `<span class="col-resizer no-print" title="Arraste para mudar a largura (duplo clique volta ao padrão)" onpointerdown="iniciarResizeColuna(event,'${cfg.tableKey}','${c.key}')" ondblclick="resetLarguraColuna('${cfg.tableKey}','${c.key}')"></span>` : '';
     return `<th><div class="th-flex"><span>${c.label}${arrow}</span><button class="th-filter-btn ${active?'active':''}" onclick="toggleFilterMenu('${cfg.tableKey}','${c.key}', this)">▾</button></div>${resizer}</th>`;
-  }).join('') + (cfg.selecionavel
-    ? `<th class="no-print th-sel"><input type="checkbox" class="sel-cb" title="Selecionar todas as linhas visíveis" onchange="selecionarTodasLinhas('${cfg.tableKey}', this.checked)"></th>`
-    : '<th class="no-print"></th>');
+  }).join('') + '<th class="no-print"></th>';
   const larg = excel ? larguraColunas(cfg) : null;
-  const colgroup = excel ? `<colgroup>${cfg.columns.map(c=>`<col data-key="${c.key}" style="width:${larg[c.key]}px">`).join('')}<col data-key="__acoes" style="width:${cfg.selecionavel?64:44}px"></colgroup>` : '';
-  const larguraTabela = excel ? Object.values(larg).reduce((a,b)=>a+b,0) + (cfg.selecionavel?64:44) : 0;
+  const colgroup = excel ? `<colgroup>${cfg.columns.map(c=>`<col data-key="${c.key}" style="width:${larg[c.key]}px">`).join('')}<col data-key="__acoes" style="width:44px"></colgroup>` : '';
+  const larguraTabela = excel ? Object.values(larg).reduce((a,b)=>a+b,0) + 44 : 0;
   const estiloTabela = excel ? `style="width:${larguraTabela}px;"` : (cfg.minWidth?`style="min-width:${cfg.minWidth}px;"`:'');
 
   return `
@@ -928,14 +935,13 @@ function renderTablePage(cfg){
     ${cfg.metricsHtml || ''}
     <div class="panel ${excel?'panel-excel':''}" style="padding:0;">
       <div class="table-wrap">
-        <table id="tbl-${cfg.tableKey}" class="${cfg.cardsNoCelular?'cards-cel':''} ${excel?'tbl-excel':''}" ${estiloTabela}>
+        <table id="tbl-${cfg.tableKey}" class="${cfg.cardsNoCelular?'cards-cel':''} ${excel?'tbl-excel sel-excel':''}" ${estiloTabela}>
           ${colgroup}
           <thead><tr>${theadCols}</tr></thead>
           <tbody id="tbody-${cfg.tableKey}"></tbody>
           ${cfg.totais ? `<tfoot id="tfoot-${cfg.tableKey}"></tfoot>` : ''}
         </table>
       </div>
-      ${cfg.selecionavel ? `<div class="barra-soma no-print" id="soma-${cfg.tableKey}"></div>` : ''}
     </div>
   `;
 }
@@ -949,7 +955,8 @@ function tableCellHtml(cfg, row, idx, col){
     else if(col.type==='money') display = fmtR(v);
     else if(col.type==='text') display = esc(v);
     else display = fmt(v) + (col.unit ? ' '+col.unit : '');
-    return `<td class="readonly">${display}</td>`;
+    const numerico = col.type!=='text';
+    return `<td class="readonly ${numerico?'td-num':''}" ${numerico?`data-num="${Number(v)||0}" data-unit="${col.type==='money'?'R$':col.type==='pct'?'%':esc(col.unit||'')}"`:''}>${display}</td>`;
   }
   if(col.type==='select'){
     const optsList = col.optionsFn ? col.optionsFn(row) : [];
@@ -965,6 +972,10 @@ function tableCellHtml(cfg, row, idx, col){
   }
   if(col.type==='number'){
   const unit = col.unit ? `<span>${col.unit}</span>` : '';
+  if(col.brDecimal){
+    const v = fmtNumInput(row[col.key]);
+    return `<td class="td-num" data-unit="${esc(col.unit||'')}"><div class="cell-unit cell-unit-junto"><input type="text" inputmode="decimal" data-br-dec="1" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${v}" style="width:${larguraInputNum(v)}" oninput="onCellEdit(this,'${cfg.tableKey}')" onchange="this.value=fmtNumInput(parseNumBR(this.value)); this.style.width=larguraInputNum(this.value)">${unit}</div></td>`;
+  }
   if(col.brInteger){
     const v = row[col.key]==='' || row[col.key]===undefined ? '' : Number(row[col.key]).toLocaleString('pt-BR',{maximumFractionDigits:0});
     return `<td><div class="cell-unit"><input type="text" inputmode="numeric" data-br-int="1" data-idx="${idx}" data-field="${col.key}" data-table="${cfg.tableKey}" value="${v}" oninput="onCellEdit(this,'${cfg.tableKey}')">${unit}</div></td>`;
@@ -999,19 +1010,14 @@ function renderTbody(tableKey){
     atualizarTotaisTabela(tableKey);
     return;
   }
-  const sel = selecaoTabela(tableKey);
   tbody.innerHTML = rows.map((row,idx)=>{
     const cells = cfg.columns.map(col=>tableCellHtml(cfg, row, idx, col).replace('<td', `<td data-label="${esc(col.label)}"`)).join('');
-    const marcado = cfg.selecionavel && sel.has(row.id);
-    const cb = cfg.selecionavel ? `<input type="checkbox" class="sel-cb" title="Selecionar para somar" ${marcado?'checked':''} onchange="selecionarLinha('${tableKey}', ${idx}, this.checked)">` : '';
-    return `<tr data-row-idx="${idx}" class="${marcado?'linha-sel':''}">${cells}<td class="no-print td-acoes">${cb}<button class="ghost" onclick="deleteTableRow('${tableKey}', ${idx})">✕</button></td></tr>`;
+    return `<tr data-row-idx="${idx}">${cells}<td class="no-print td-acoes"><button class="ghost" onclick="deleteTableRow('${tableKey}', ${idx})">✕</button></td></tr>`;
   }).join('');
   atualizarTotaisTabela(tableKey);
 }
 
 // =================== TABELA ESTILO EXCEL: total, seleção e largura das colunas ===================
-const selecoesTabela = {};
-function selecaoTabela(tableKey){ return selecoesTabela[tableKey] = selecoesTabela[tableKey] || new Set(); }
 function valorColuna(cfg, row, col){ return Number(col.derived ? (cfg.computeDerived(row)||{})[col.key] : row[col.key]) || 0; }
 function fmtTotalColuna(col, v){ return col.type==='money' ? fmtR(v) : fmt(v, col.decTotal ?? 1) + (col.unit ? ' '+col.unit : ''); }
 function atualizarTotaisTabela(tableKey){
@@ -1027,38 +1033,106 @@ function atualizarTotaisTabela(tableKey){
       return `<td class="vazio"></td>`;
     }).join('')}<td class="no-print vazio"></td></tr>`;
   }
-  const barra = document.getElementById('soma-'+tableKey);
-  if(barra && cfg.selecionavel){
-    const sel = selecaoTabela(tableKey);
-    const escolhidas = cfg.rows.filter(r=>sel.has(r.id));
-    if(!escolhidas.length){ barra.innerHTML = ''; barra.classList.remove('ativa'); }
-    else{
-      const somas = (cfg.totais||[]).map(k=>{ const col = cfg.columns.find(c=>c.key===k); return `<span>${col.label}: <strong>${fmtTotalColuna(col, escolhidas.reduce((s,r)=>s+valorColuna(cfg,r,col),0))}</strong></span>`; }).join('');
-      barra.innerHTML = `<span>✔ <strong>${escolhidas.length}</strong> ${escolhidas.length===1?'linha selecionada':'linhas selecionadas'}</span>${somas}<button class="ghost" type="button" onclick="limparSelecao('${tableKey}')">Limpar seleção</button>`;
-      barra.classList.add('ativa');
-    }
+}
+// Números no padrão brasileiro dentro da célula (6.800 / 404,5) com a unidade colada.
+function fmtNumInput(n){ return (n===''||n===undefined||n===null||isNaN(Number(n))) ? '' : Number(n).toLocaleString('pt-BR',{maximumFractionDigits:2}); }
+function parseNumBR(v){
+  const t = String(v||'').replace(/[^\d,.-]/g,'').replace(/\./g,'').replace(',','.');
+  if(t===''||t==='-') return '';
+  const n = Number(t);
+  return isNaN(n) ? '' : n;
+}
+function larguraInputNum(v){ return `calc(${Math.max(2, String(v||'').length+1)}ch + 10px)`; }
+
+// Seleção de células estilo Excel: clicar e arrastar, Shift+clique (intervalo) ou
+// Ctrl+clique (células soltas). A barra mostra Média, Contagem e Soma.
+const selExcel = {table:null, anchor:null, cells:new Set(), arrastando:false};
+function gradeCelulas(table){
+  const tb = table.tBodies[0];
+  return tb ? [...tb.rows].map(tr=>[...tr.cells].filter(td=>!td.classList.contains('td-acoes') && !td.classList.contains('empty'))) : [];
+}
+function posCelula(table, td){
+  const g = gradeCelulas(table);
+  for(let r=0;r<g.length;r++){ const c = g[r].indexOf(td); if(c>-1) return {r,c}; }
+  return null;
+}
+function limparSelecaoExcel(){
+  selExcel.cells.forEach(td=>td.classList.remove('cel-sel'));
+  selExcel.cells.clear(); selExcel.table = null; selExcel.anchor = null; selExcel.arrastando = false;
+  atualizarBarraExcel();
+}
+function marcarIntervaloExcel(table, a, b){
+  selExcel.cells.forEach(td=>td.classList.remove('cel-sel'));
+  selExcel.cells.clear();
+  const g = gradeCelulas(table);
+  for(let r=Math.min(a.r,b.r); r<=Math.max(a.r,b.r); r++)
+    for(let c=Math.min(a.c,b.c); c<=Math.max(a.c,b.c); c++)
+      if(g[r] && g[r][c]){ g[r][c].classList.add('cel-sel'); selExcel.cells.add(g[r][c]); }
+  atualizarBarraExcel();
+}
+function valorCelulaExcel(td){
+  if(td.dataset.num!==undefined) return Number(td.dataset.num);
+  const dec = td.querySelector('input[data-br-dec]');
+  if(dec){ const v = parseNumBR(dec.value); return v==='' ? null : v; }
+  const n = td.querySelector('input[type=number]');
+  if(n && n.value!=='') return Number(n.value);
+  return null;
+}
+function celulaPreenchida(td){
+  const el = td.querySelector('input,select');
+  return el ? String(el.value||'').trim()!=='' : td.textContent.trim()!=='';
+}
+function atualizarBarraExcel(){
+  let barra = document.getElementById('barra-excel');
+  if(!barra){ barra = document.createElement('div'); barra.id='barra-excel'; barra.className='barra-excel no-print'; document.body.appendChild(barra); }
+  const cels = [...selExcel.cells].filter(td=>td.isConnected);
+  if(cels.length<2){ barra.classList.remove('ativa'); return; }
+  const nums = cels.map(valorCelulaExcel).filter(v=>v!==null);
+  const unidades = [...new Set(cels.filter(td=>valorCelulaExcel(td)!==null).map(td=>td.dataset.unit||''))];
+  const u = unidades.length===1 ? unidades[0] : '';
+  const f = v => u==='R$' ? fmtR(v) : u==='%' ? fmtPct(v) : fmt(v,2).replace(/,00$/,'') + (u?' '+u:'');
+  const soma = nums.reduce((a,b)=>a+b,0);
+  barra.innerHTML = nums.length
+    ? `<span>Média: <strong>${f(soma/nums.length)}</strong></span><span>Contagem: <strong>${cels.filter(celulaPreenchida).length}</strong></span><span>Soma: <strong>${f(soma)}</strong></span>`
+    : `<span>Contagem: <strong>${cels.filter(celulaPreenchida).length}</strong></span>`;
+  barra.classList.add('ativa');
+}
+document.addEventListener('mousedown', e=>{
+  if(e.button!==0) return;
+  const td = e.target.closest('table.sel-excel tbody td');
+  if(!td || td.classList.contains('td-acoes') || td.classList.contains('empty')){
+    if(selExcel.cells.size) limparSelecaoExcel();
+    return;
   }
-}
-function selecionarLinha(tableKey, idx, marcado){
-  const row = (tableRowsVisible[tableKey]||[])[idx];
-  if(!row) return;
-  const sel = selecaoTabela(tableKey);
-  if(marcado) sel.add(row.id); else sel.delete(row.id);
-  const tr = document.querySelector(`#tbody-${tableKey} tr[data-row-idx="${idx}"]`);
-  if(tr) tr.classList.toggle('linha-sel', marcado);
-  atualizarTotaisTabela(tableKey);
-}
-function selecionarTodasLinhas(tableKey, marcado){
-  const sel = selecaoTabela(tableKey);
-  (tableRowsVisible[tableKey]||[]).forEach(r=>{ if(marcado) sel.add(r.id); else sel.delete(r.id); });
-  renderTbody(tableKey);
-}
-function limparSelecao(tableKey){
-  selecaoTabela(tableKey).clear();
-  const th = document.querySelector(`#tbl-${tableKey} .th-sel input`);
-  if(th) th.checked = false;
-  renderTbody(tableKey);
-}
+  const table = td.closest('table');
+  const pos = posCelula(table, td);
+  if(!pos) return;
+  if(e.shiftKey && selExcel.table===table && selExcel.anchor){ e.preventDefault(); marcarIntervaloExcel(table, selExcel.anchor, pos); return; }
+  if((e.ctrlKey||e.metaKey) && selExcel.table===table){
+    e.preventDefault();
+    if(selExcel.cells.has(td)){ selExcel.cells.delete(td); td.classList.remove('cel-sel'); }
+    else { selExcel.cells.add(td); td.classList.add('cel-sel'); }
+    atualizarBarraExcel();
+    return;
+  }
+  limparSelecaoExcel();
+  selExcel.table = table; selExcel.anchor = pos; selExcel.arrastando = true;
+  selExcel.cells.add(td); td.classList.add('cel-sel');
+});
+document.addEventListener('mouseover', e=>{
+  if(!selExcel.arrastando || !selExcel.table) return;
+  const td = e.target.closest('td');
+  if(!td || td.closest('table')!==selExcel.table) return;
+  const pos = posCelula(selExcel.table, td);
+  if(!pos) return;
+  if(pos.r===selExcel.anchor.r && pos.c===selExcel.anchor.c && selExcel.cells.size<=1) return;
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const s = window.getSelection && window.getSelection(); if(s) s.removeAllRanges();
+  marcarIntervaloExcel(selExcel.table, selExcel.anchor, pos);
+});
+document.addEventListener('mouseup', ()=>{ selExcel.arrastando = false; });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && selExcel.cells.size) limparSelecaoExcel(); });
+
 function lerLargurasSalvas(){ try{ return JSON.parse(localStorage.getItem('larguraColunas')||'{}'); }catch(e){ return {}; } }
 function larguraColunas(cfg){
   const salvas = lerLargurasSalvas()[cfg.tableKey] || {};
@@ -1119,7 +1193,11 @@ function onCellEdit(el, tableKey){
   const row = tableRowsVisible[tableKey][idx];
   let val = el.value;
 
-if(el.dataset.brInt){
+if(el.dataset.brDec){
+  val = parseNumBR(val);
+  el.style.width = larguraInputNum(el.value);
+}
+else if(el.dataset.brInt){
   const numeros = String(val).replace(/\D/g,'');
   val = numeros==='' ? '' : Number(numeros);
   el.value = numeros==='' ? '' : Number(numeros).toLocaleString('pt-BR');
@@ -1153,10 +1231,12 @@ else if(el.tagName==='INPUT' && el.type==='number'){
       else if(col.type==='text') display = esc(v);
       else display = fmt(v) + (col.unit ? ' '+col.unit : '');
       tr.children[ci].textContent = display;
+      if(tr.children[ci].dataset.num!==undefined) tr.children[ci].dataset.num = Number(v)||0;
     }
   });
   if(cfg.onRowChange) cfg.onRowChange(row); else scheduleSave();
-  if(cfg.totais || cfg.selecionavel) atualizarTotaisTabela(tableKey);
+  if(cfg.totais) atualizarTotaisTabela(tableKey);
+  atualizarBarraExcel();
 }
 function addTableRow(tableKey){
   const cfg = tableRegistry[tableKey];
@@ -1655,7 +1735,7 @@ function bindStaticEvents(){
   const tbEstoque = document.getElementById('tbody-diesel-estoque');
   if(tbEstoque && tbEstoque.dataset.recalcBound!=='1'){
     tbEstoque.dataset.recalcBound = '1';
-    tbEstoque.addEventListener('change', e=>{ if(!e.target.classList.contains('sel-cb')) render(); });
+    tbEstoque.addEventListener('change', ()=>render());
   }
 
   bindExcelEnterNavigation();
@@ -1844,12 +1924,12 @@ function buildDieselControleCfg(){
     rows: diesel.lancamentos, exportName:'controle_diesel', exportFileName:`Controle_Diesel_${hojeISO()}.xlsx`,
     computeDerived: ()=>({}), semLinhaEmBranco: true, cardsNoCelular: true,
     larguras: {data:135, maquina:170, litros:110, servico:320, area:130, estacao:160},
-    totais: ['litros'], selecionavel: true,
+    totais: ['litros'],
     formTitle:'Novo lançamento', formButton:'Salvar lançamento',
     columns: [
       {key:'data', label:'Data', type:'date', formDefault: hojeISO},
       {key:'maquina', label:'Máquina', type:'select', optionsFn: r=>opcoesDiesel('maquinas', r, 'maquina')},
-      {key:'litros', label:'Qtd Litros', type:'number', unit:'L'},
+      {key:'litros', label:'Qtd Litros', type:'number', unit:'L', brDecimal:true},
       {key:'servico', label:'Serviço Realizado', type:'text'},
       {key:'area', label:'Área', type:'select', optionsFn: r=>opcoesDiesel('areas', r, 'area')},
       {key:'estacao', label:'Estação', type:'select', optionsFn: r=>opcoesDiesel('estacoes', r, 'estacao'),
@@ -1871,11 +1951,11 @@ function buildDieselEstoqueCfg(){
     computeDerived: r=>calcEstoqueDiesel().porId[r.id] || {usado:0, saldo:0},
     semLinhaEmBranco: true, cardsNoCelular: true,
     larguras: {data:140, entrada:130, usado:120, saldo:120},
-    totais: ['usado'], selecionavel: true,
+    totais: ['usado'],
     formTitle:'Novo lançamento do tanque', formButton:'Salvar',
     columns: [
       {key:'data', label:'Data', type:'date', formDefault: hojeISO},
-      {key:'entrada', label:'Qtd Total', type:'number', unit:'L'},
+      {key:'entrada', label:'Qtd Total', type:'number', unit:'L', brDecimal:true},
       {key:'usado', label:'Usado', derived:true, unit:'L'},
       {key:'saldo', label:'Saldo', derived:true, unit:'L'},
     ],
@@ -1913,22 +1993,27 @@ function descricaoFiltroDiesel(){
 function setFiltroDiesel(campo, valor){ dieselFiltro[campo] = valor; render(); }
 function limparFiltroDiesel(){ dieselFiltro = {de:'', ate:'', estacao:''}; render(); }
 
-function tabelaResumoDiesel(titulo, rotulo, linhas){
-  const total = linhas.reduce((s,r)=>s+r.litros,0), qtd = linhas.reduce((s,r)=>s+r.qtd,0);
-  const plural = n => `${n} ${n===1?'lançamento':'lançamentos'}`;
+function tabelaResumoDiesel(chave, titulo, rotulo, linhas){
+  const tk = 'resumo-'+chave;
+  const visiveis = dashboardRows(tk, linhas, [
+    {key:'nome', label:rotulo, type:'text'}, {key:'litros', label:'Litros', type:'number'}, {key:'pct', label:'%', type:'pct'},
+  ]);
+  const total = visiveis.reduce((s,r)=>s+r.litros,0), pctTotal = visiveis.reduce((s,r)=>s+r.pct,0);
   return `
     <div class="resumo-card">
       <h3>${titulo}</h3>
       ${linhas.length ? `
-      <table class="resumo">
-        <colgroup><col><col style="width:30%"><col style="width:24%"></colgroup>
-        <tr><th>${rotulo}</th><th>Litros</th><th>%</th></tr>
-        ${linhas.map(r=>`<tr>
-          <td>${esc(r.nome)}<span class="sub">${plural(r.qtd)}</span></td>
-          <td class="num">${fmt(r.litros,1)} L</td>
-          <td class="num">${fmtPct(r.pct)}<div class="barra"><i style="width:${(r.pct*100).toFixed(1)}%"></i></div></td>
-        </tr>`).join('')}
-        <tr class="total"><td>TOTAL<span class="sub">${plural(qtd)}</span></td><td class="num">${fmt(total,1)} L</td><td class="num">100,0%</td></tr>
+      <table class="resumo sel-excel">
+        <colgroup><col><col style="width:32%"><col style="width:26%"></colgroup>
+        <thead><tr>${dashboardTh(tk,'nome',rotulo)}${dashboardTh(tk,'litros','Litros')}${dashboardTh(tk,'pct','%')}</tr></thead>
+        <tbody>
+        ${visiveis.map(r=>`<tr>
+          <td>${esc(r.nome)}</td>
+          <td class="num" data-num="${r.litros}" data-unit="L">${fmt(r.litros,1)} L</td>
+          <td class="num" data-num="${r.pct}" data-unit="%">${fmtPct(r.pct)}<div class="barra"><i style="width:${(r.pct*100).toFixed(1)}%"></i></div></td>
+        </tr>`).join('') || `<tr><td colspan="3" class="empty">Nenhuma linha no filtro.</td></tr>`}
+        </tbody>
+        <tfoot><tr><td>TOTAL</td><td class="num">${fmt(total,1)} L</td><td class="num">${fmtPct(pctTotal)}</td></tr></tfoot>
       </table>` : `<div class="empty" style="text-align:center; padding:18px;">Nenhum lançamento no filtro.</div>`}
     </div>`;
 }
@@ -2005,9 +2090,9 @@ function pageDieselResumo(){
       <div class="metric"><div class="val">${fmt(media,1)} L</div><div class="lbl">Média por lançamento</div></div>
     </div>
     <div class="resumo-grid">
-      ${tabelaResumoDiesel('🌾 Por Área', 'Área', agruparDiesel(lancs,'area'))}
-      ${tabelaResumoDiesel('🚜 Por Máquina', 'Máquina', agruparDiesel(lancs,'maquina'))}
-      ${tabelaResumoDiesel('📅 Por Estação', 'Estação', agruparDiesel(lancs,'estacao'))}
+      ${tabelaResumoDiesel('area', '🌾 Por Área', 'Área', agruparDiesel(lancs,'area'))}
+      ${tabelaResumoDiesel('maquina', '🚜 Por Máquina', 'Máquina', agruparDiesel(lancs,'maquina'))}
+      ${tabelaResumoDiesel('estacao', '📅 Por Estação', 'Estação', agruparDiesel(lancs,'estacao'))}
     </div>
   `;
 }
