@@ -2091,17 +2091,19 @@ function pageDieselEstoque(){
     {key:'litros', label:'Litros', type:'number'}, {key:'saldo', label:'Saldo', type:'number'},
   ];
   // sempre em ordem de data (mais antiga em cima); no mesmo dia: entrada, saída, acerto
-  const visiveis = dashboardRows(tk, est.movs, colunas);
+  const filtradas = dashboardRows(tk, est.movs, colunas);
+  // ordenar por Data é o padrão (continua separado por mês); outra coluna mostra sem os meses
+  const agrupar = !tableState[tk].sortKey || tableState[tk].sortKey==='data';
+  const visiveis = agrupar ? est.movs.filter(m=>filtradas.includes(m)) : filtradas;
   const cfgExtrato = tableRegistry[tk];
   cfgExtrato.larguras = LARGURAS_EXTRATO;
   const larg = larguraColunas(cfgExtrato);
   const larguraTabela = Object.values(larg).reduce((a,b)=>a+b,0) + 44;
-  const agrupar = !tableState[tk].sortKey;   // se o usuário ordenar por outra coluna, mostra sem os meses
   const th = c=>{
     const ts = tableState[tk];
     const ativo = ts.colFilters[c.key] || ts.sortKey===c.key;
-    const seta = ts.sortKey===c.key ? (ts.sortDir>0?' ▲':' ▼') : '';
-    return `<th><div class="th-flex"><span>${c.label}${seta}</span><button class="th-filter-btn ${ativo?'active':''}" onclick="toggleFilterMenu('${tk}','${c.key}', this)">▾</button></div><span class="col-resizer no-print" title="Arraste para mudar a largura (duplo clique volta ao padrão)" onpointerdown="iniciarResizeColuna(event,'${tk}','${c.key}')" ondblclick="resetLarguraColuna('${tk}','${c.key}')"></span></th>`;
+    const seta = ts.sortKey===c.key && c.key!=='data' ? (ts.sortDir>0?' ▲':' ▼') : '';
+    return `<th><div class="th-flex"><span>${c.label}${seta}</span><button class="th-filter-btn ${ativo && !(c.key==='data' && !ts.colFilters.data)?'active':''}" onclick="toggleFilterMenu('${tk}','${c.key}', this)">▾</button></div><span class="col-resizer no-print" title="Arraste para mudar a largura (duplo clique volta ao padrão)" onpointerdown="iniciarResizeColuna(event,'${tk}','${c.key}')" ondblclick="resetLarguraColuna('${tk}','${c.key}')"></span></th>`;
   };
   const sinal = v => (v>0?'+':'') + litrosFmt(v);
   const linhaMov = m=>`
@@ -2115,25 +2117,13 @@ function pageDieselEstoque(){
     </tr>`;
   let linhas = '';
   if(agrupar){
-    // resumo de cada mês com todos os movimentos (o filtro só esconde linhas)
-    const meses = {};
-    est.movs.forEach(m=>{
-      const ym = (m.data||'').slice(0,7) || 'sem-data';
-      const r = meses[ym] = meses[ym] || {entrou:0, saiu:0, acerto:0, saldoFim:0};
-      if(m.tipo==='entrada') r.entrou += m.litros; else if(m.tipo==='uso') r.saiu -= m.litros; else r.acerto += m.litros;
-      r.saldoFim = m.saldo;
-    });
-    const ultimo = Object.keys(meses).sort().pop();
     const porMes = {};
     visiveis.forEach(m=>{ const ym = (m.data||'').slice(0,7) || 'sem-data'; (porMes[ym] = porMes[ym] || []).push(m); });
     linhas = Object.keys(porMes).sort().map(ym=>{
-      const r = meses[ym], aberto = ym in dieselMesesAbertos ? dieselMesesAbertos[ym] : ym===ultimo;
+      const aberto = ym in dieselMesesAbertos ? dieselMesesAbertos[ym] : true;
       return `
       <tr class="mes-header">
-        <td class="mes-cel" colspan="6" onclick="toggleMesDiesel('${ym}', ${aberto})">
-          <span class="mes-nome">${aberto?'▾':'▸'} ${ym==='sem-data'?'SEM DATA':nomeMes(ym)}</span>
-          <span class="mes-resumo">Entrou <b class="cor-entrada">+${litrosFmt(r.entrou)}</b> · Saiu <b>−${litrosFmt(r.saiu)}</b>${r.acerto?` · Acertos <b class="cor-acerto">${sinal(r.acerto)}</b>`:''} · Saldo no fim <b>${litrosFmt(r.saldoFim)}</b></span>
-        </td>
+        <td class="mes-cel" colspan="6" onclick="toggleMesDiesel('${ym}', ${aberto})"><span class="mes-nome">${aberto?'▾':'▸'} ${ym==='sem-data'?'SEM DATA':nomeMes(ym)}</span></td>
       </tr>${aberto ? porMes[ym].map(linhaMov).join('') : ''}`;
     }).join('');
   } else {
