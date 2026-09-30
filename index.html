@@ -93,7 +93,7 @@
     body{background:#fff;}
     table.tbl-excel{table-layout:auto; width:100% !important;}
     .resumo-grid{grid-template-columns:repeat(3,1fr); gap:10px;}
-    .resumo-card h3, table.resumo .barra i, tfoot tr.linha-total td, .saldo-grande, tr.mov-entrada td, tr.mov-acerto td, tr.mov-uso td, .tag-mov{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .resumo-card h3, table.resumo .barra i, tfoot tr.linha-total td, .saldo-grande, tr.mov-entrada td, tr.mov-acerto td, tr.mov-uso td, .tag-mov, .card-entrada, .card-saida, .card-acerto{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
     table.resumo{font-size:10px;}
   }
 
@@ -163,6 +163,10 @@
   .saldo-grande .lbl{color:#d7e8cd;}
   .cor-entrada{color:#3f7a2b !important;}
   .cor-acerto{color:#c26a12 !important;}
+  .cor-saida{color:#a3372a !important;}
+  .card-entrada{background:#eef6e8; border-color:#cfe3c2;}
+  .card-saida{background:#fdf0ee; border-color:#f3d3cd;}
+  .card-acerto{background:#fff1df; border-color:#f4d3a6;}
   .form-entrada{border-top:4px solid #5a9a42;}
   .form-acerto{border-top:4px solid #e08a1e;}
   .btn-acerto{margin-top:12px; background:#e08a1e; color:#fff; border:none; padding:8px 16px; border-radius:6px; font-size:13px; cursor:pointer;}
@@ -2130,9 +2134,9 @@ function pageDieselEstoque(){
 
     <div class="estoque-topo">
       <div class="metric saldo-grande"><div class="val ${est.saldoAtual<0?'text-red':''}">${fmt(est.saldoAtual,1).replace(/,0$/,'')} L</div><div class="lbl">Saldo atual no tanque</div></div>
-      <div class="metric"><div class="val cor-entrada">+${fmt(est.totalEntradas,1).replace(/,0$/,'')} L</div><div class="lbl">Entradas</div></div>
-      <div class="metric"><div class="val">−${fmt(est.totalUsado,1).replace(/,0$/,'')} L</div><div class="lbl">Usado</div></div>
-      <div class="metric"><div class="val cor-acerto">${sinal(est.totalAcertos)}</div><div class="lbl">Acertos</div></div>
+      <div class="metric card-entrada"><div class="val cor-entrada">+${fmt(est.totalEntradas,1).replace(/,0$/,'')} L</div><div class="lbl">Entradas</div></div>
+      <div class="metric card-saida"><div class="val cor-saida">−${fmt(est.totalUsado,1).replace(/,0$/,'')} L</div><div class="lbl">Usado</div></div>
+      <div class="metric card-acerto"><div class="val cor-acerto">${sinal(est.totalAcertos)}</div><div class="lbl">Acertos</div></div>
     </div>
 
     <div class="grid cols-2 no-print estoque-forms">
