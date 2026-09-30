@@ -177,6 +177,7 @@
   table.extrato td.td-acoes{padding:0 4px; text-overflow:clip;}
   table.tbl-excel tfoot td.total-rotulo{overflow:visible;}
   tr.mov-entrada td{background:#eef6e8;}
+  table.extrato td.col-saldo{font-weight:700;}
   tr.mov-uso td{background:#fdf0ee;}
   table.extrato tfoot td.total-rotulo{font-size:13px;}
   table.extrato tfoot td.num{font-size:14px;}
@@ -254,6 +255,41 @@
     table.cards-cel td{border:none;}
     .cell-unit-junto{justify-content:flex-start;}
     .cell-unit-junto input{text-align:left;}
+    /* cartões compactos: 2 colunas, rótulo pequeno em cima do valor */
+    table.cards-cel tbody tr{display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; padding:8px 10px; border-bottom:2px solid var(--line);}
+    table.cards-cel tbody td{display:block; min-height:0; padding:2px 0 !important; border:none; white-space:normal; overflow:visible;}
+    table.cards-cel tbody td::before{display:block; flex:none; padding:0; margin-bottom:1px; font-size:10.5px; line-height:1.2; color:var(--ink-soft);}
+    table.cards-cel tbody td[data-label="Serviço Realizado"]{grid-column:1 / -1;}
+    table.cards-cel tbody td input, table.cards-cel tbody td select{padding:3px 6px !important; min-height:0; height:auto;}
+    table.cards-cel tbody td .cell-unit{justify-content:flex-start;}
+    table.cards-cel tbody td.readonly{padding:2px 0 !important; font-weight:400;}
+    table.cards-cel tbody td.col-saldo{font-weight:700;}
+    table.cards-cel tbody td.td-acoes{display:flex; justify-content:flex-end; align-items:flex-end; padding:2px 0 0 !important;}
+    /* cor do cartão inteiro no extrato */
+    table.cards-cel tbody tr.mov-entrada{background:#eef6e8;}
+    table.cards-cel tbody tr.mov-uso{background:#fdf0ee;}
+    table.cards-cel tbody tr.mov-acerto{background:#fff1df;}
+    table.cards-cel tbody tr[class^="mov-"] td{background:transparent !important;}
+    /* estoque: 3 colunas — Data | Tipo | Litros / Área | Saldo | Excluir */
+    table.extrato.cards-cel tbody tr{grid-template-columns:1fr 1fr 1fr;}
+    table.extrato.cards-cel td[data-label="Data"]{order:1;}
+    table.extrato.cards-cel td[data-label="Tipo"]{order:2;}
+    table.extrato.cards-cel td[data-label="Litros"]{order:3;}
+    table.extrato.cards-cel td[data-label="Área"]{order:4;}
+    table.extrato.cards-cel td[data-label="Saldo"]{order:5;}
+    table.extrato.cards-cel td[data-label="Estação"]{order:6;}
+    table.extrato.cards-cel td.td-acoes{order:7;}
+    /* controle: Data | Máquina / Litros | Área / Estação | Excluir / Serviço (largura toda) */
+    #tbl-diesel-controle.cards-cel td[data-label="Data"]{order:1;}
+    #tbl-diesel-controle.cards-cel td[data-label="Máquina"]{order:2;}
+    #tbl-diesel-controle.cards-cel td[data-label="Qtd Litros"]{order:3;}
+    #tbl-diesel-controle.cards-cel td[data-label="Área"]{order:4;}
+    #tbl-diesel-controle.cards-cel td[data-label="Estação"]{order:5;}
+    #tbl-diesel-controle.cards-cel td.td-acoes{order:6;}
+    #tbl-diesel-controle.cards-cel td[data-label="Serviço Realizado"]{order:7;}
+    table.cards-cel tbody td.td-acoes:empty{display:none;}
+    table.cards-cel tbody td.td-acoes button{padding:4px 10px; font-size:12px;}
+    table.cards-cel tbody td.empty{grid-column:1 / -1;}
     .resumo-kpis{grid-template-columns:1fr 1fr 1fr; gap:8px;}
     .estoque-topo{grid-template-columns:1fr 1fr 1fr;}
     .estoque-topo .saldo-grande{grid-column:1 / -1;}
@@ -2123,7 +2159,7 @@ function pageDieselEstoque(){
       <td data-label="Tipo"><span class="tag-mov tag-${m.tipo}" ${m.tipo==='acerto'?`title="${esc(m.desc)}"`:''}>${m.tipoNome}</span></td>
       <td data-label="Área" ${m.tipo==='uso'?`title="${esc(m.desc)}"`:''}>${esc(m.area)}</td>
       <td data-label="Litros" class="td-num" data-num="${m.litros}" data-unit="L">${sinal(m.litros)}</td>
-      <td data-label="Saldo" class="td-num ${sl<0?'text-red':''}" data-num="${sl}" data-unit="L">${litrosFmt(sl)}</td>
+      <td data-label="Saldo" class="td-num col-saldo ${sl<0?'text-red':''}" data-num="${sl}" data-unit="L">${litrosFmt(sl)}</td>
       ${mostrarEstacao ? `<td data-label="Estação">${esc(m.estacao||'—')}</td>` : ''}
       <td class="no-print td-acoes">${m.tipo==='uso' ? '' : `<button class="ghost" title="Excluir" onclick="excluirMovEstoque('${m.id}')">✕</button>`}</td>
     </tr>`; }).join('');
