@@ -229,67 +229,25 @@
     h2{font-size:19px;}
     .panel > button.primary{width:100%; padding:13px; font-size:15px;}
     .toolbar button{flex:1 1 auto;}
-    /* Tabelas de lançamento viram cartões no celular */
-    table.cards-cel{min-width:0 !important;}
-    table.cards-cel thead{display:none;}
-    table.cards-cel, table.cards-cel tbody, table.cards-cel tr{display:block; width:100%;}
-    table.cards-cel tr{position:relative; padding:6px 0; border-bottom:3px solid var(--line);}
-    table.cards-cel tr:nth-child(even){background:#fbfaf6;}
-    table.cards-cel td{display:flex; align-items:center; width:100%; border:none; min-height:38px;}
-    table.cards-cel td::before{content:attr(data-label); flex:0 0 118px; padding-left:12px; font-size:12px; font-weight:400; color:var(--ink-soft);}
-    table.cards-cel td:not([data-label])::before, table.cards-cel td.td-acoes::before{display:none;}
-    table.cards-cel td > input, table.cards-cel td > select, table.cards-cel td > .cell-unit{flex:1; min-width:0;}
-    table.cards-cel td.readonly{padding:7px 9px 7px 0; font-weight:600; color:var(--ink);}
-    table.cards-cel td.td-acoes{justify-content:flex-end; padding:4px 12px;}
-    table.cards-cel td.td-acoes button{padding:7px 14px; font-size:13px;}
-    table.cards-cel td.td-acoes button::after{content:' Excluir';}
-    table.cards-cel td.empty{display:block; padding:12px;}
-    table.cards-cel{width:100% !important;}
     .panel-excel{width:auto;}
-    table.cards-cel tfoot{display:block;}
-    table.cards-cel tfoot tr{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 12px; padding:12px; border-bottom:none; background:#f5f3ea;}
-    table.cards-cel tfoot td{display:block; width:auto; min-height:0; padding:0; border:none; background:none; font-weight:700; font-size:15px;}
-    table.cards-cel tfoot td::before{display:none;}
-    table.cards-cel tfoot td.vazio{display:none;}
     .barra-excel{display:none !important;}
-    table.cards-cel td{border:none;}
     .cell-unit-junto{justify-content:flex-start;}
     .cell-unit-junto input{text-align:left;}
-    /* cartões compactos: 2 colunas, rótulo pequeno em cima do valor */
-    table.cards-cel tbody tr{display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; padding:8px 10px; border-bottom:2px solid var(--line);}
-    table.cards-cel tbody td{display:block; min-height:0; padding:2px 0 !important; border:none; white-space:normal; overflow:visible;}
-    table.cards-cel tbody td::before{display:block; flex:none; padding:0; margin-bottom:1px; font-size:10.5px; line-height:1.2; color:var(--ink-soft);}
-    table.cards-cel tbody td[data-label="Serviço Realizado"]{grid-column:1 / -1;}
-    table.cards-cel tbody td input, table.cards-cel tbody td select{padding:3px 6px !important; min-height:0; height:auto;}
-    table.cards-cel tbody td .cell-unit{justify-content:flex-start;}
-    table.cards-cel tbody td.readonly{padding:2px 0 !important; font-weight:400;}
-    table.cards-cel tbody td.col-saldo{font-weight:700;}
-    table.cards-cel tbody td.td-acoes{display:flex; justify-content:flex-end; align-items:flex-end; padding:2px 0 0 !important;}
-    /* cor do cartão inteiro no extrato */
-    table.cards-cel tbody tr.mov-entrada{background:#eef6e8;}
-    table.cards-cel tbody tr.mov-uso{background:#fdf0ee;}
-    table.cards-cel tbody tr.mov-acerto{background:#fff1df;}
-    table.cards-cel tbody tr[class^="mov-"] td{background:transparent !important;}
-    /* estoque: 3 colunas — Data | Tipo | Litros / Área | Saldo | Excluir */
-    table.extrato.cards-cel tbody tr{grid-template-columns:1fr 1fr 1fr;}
-    table.extrato.cards-cel td[data-label="Data"]{order:1;}
-    table.extrato.cards-cel td[data-label="Tipo"]{order:2;}
-    table.extrato.cards-cel td[data-label="Litros"]{order:3;}
-    table.extrato.cards-cel td[data-label="Área"]{order:4;}
-    table.extrato.cards-cel td[data-label="Saldo"]{order:5;}
-    table.extrato.cards-cel td[data-label="Estação"]{order:6;}
-    table.extrato.cards-cel td.td-acoes{order:7;}
-    /* controle: Data | Máquina / Litros | Área / Estação | Excluir / Serviço (largura toda) */
-    #tbl-diesel-controle.cards-cel td[data-label="Data"]{order:1;}
-    #tbl-diesel-controle.cards-cel td[data-label="Máquina"]{order:2;}
-    #tbl-diesel-controle.cards-cel td[data-label="Qtd Litros"]{order:3;}
-    #tbl-diesel-controle.cards-cel td[data-label="Área"]{order:4;}
-    #tbl-diesel-controle.cards-cel td[data-label="Estação"]{order:5;}
-    #tbl-diesel-controle.cards-cel td.td-acoes{order:6;}
-    #tbl-diesel-controle.cards-cel td[data-label="Serviço Realizado"]{order:7;}
-    table.cards-cel tbody td.td-acoes:empty{display:none;}
-    table.cards-cel tbody td.td-acoes button{padding:4px 10px; font-size:12px;}
-    table.cards-cel tbody td.empty{grid-column:1 / -1;}
+    /* tabelas do diesel no celular: tabela de verdade, compacta (arrasta pro lado se não couber) */
+    table.tbl-excel{table-layout:auto; width:auto !important; min-width:100% !important; font-size:12px;}
+    table.tbl-excel col{width:auto !important;}
+    table.tbl-excel th .th-flex{padding:5px 3px 5px 6px; gap:2px;}
+    table.tbl-excel th{font-size:11px;}
+    table.tbl-excel td{padding:3px 6px; white-space:nowrap;}
+    table.tbl-excel tbody td input, table.tbl-excel tbody td select{font-size:13px; padding:3px 4px !important;}
+    table.tbl-excel tbody td input[type=date]{min-width:112px;}
+    table.tbl-excel tbody td select{min-width:96px;}
+    table.tbl-excel tbody td input[type=text]:not([data-br-dec]){min-width:150px;}
+    table.tbl-excel .col-resizer{display:none;}
+    table.tbl-excel tfoot tr.linha-total td{padding:6px;}
+    table.extrato td{padding:4px 5px;}
+    table.extrato .tag-mov{font-size:10px; padding:1px 6px;}
+    table.tbl-excel td.td-acoes button{padding:2px 7px;}
     .resumo-kpis{grid-template-columns:1fr 1fr 1fr; gap:8px;}
     .estoque-topo{grid-template-columns:1fr 1fr 1fr;}
     .estoque-topo .saldo-grande{grid-column:1 / -1;}
@@ -297,8 +255,6 @@
     .estoque-topo .saldo-grande .val{font-size:26px;}
     .btn-acerto{width:100%; padding:13px; font-size:15px;}
     table.extrato td{white-space:normal;}
-      table.cards-cel td.td-num{justify-content:flex-start; text-align:left;}
-    table.cards-cel td.td-acoes:empty{display:none;}
     .resumo-kpis .val{font-size:17px;}
     .resumo-kpis .metric{padding:10px 6px;}
     .filtros-resumo > div{max-width:none;}
@@ -1013,7 +969,7 @@ function renderTablePage(cfg){
     ${cfg.metricsHtml || ''}
     <div class="panel ${excel?'panel-excel':''}" style="padding:0;">
       <div class="table-wrap">
-        <table id="tbl-${cfg.tableKey}" class="${cfg.cardsNoCelular?'cards-cel':''} ${excel?'tbl-excel sel-excel':''}" ${estiloTabela}>
+        <table id="tbl-${cfg.tableKey}" class="${excel?'tbl-excel sel-excel':''}" ${estiloTabela}>
           ${colgroup}
           <thead><tr>${theadCols}</tr></thead>
           <tbody id="tbody-${cfg.tableKey}"></tbody>
@@ -2004,7 +1960,7 @@ function buildDieselControleCfg(){
     tableKey:'diesel-controle', title:'⛽ Controle Diesel',
     caption:'Lance cada abastecimento de máquina. As linhas abaixo podem ser corrigidas direto na tabela; clique no ▾ do cabeçalho para filtrar.',
     rows: diesel.lancamentos, exportName:'controle_diesel', exportFileName:`Controle_Diesel_${hojeISO()}.xlsx`,
-    computeDerived: ()=>({}), semLinhaEmBranco: true, cardsNoCelular: true,
+    computeDerived: ()=>({}), semLinhaEmBranco: true,
     larguras: {data:135, maquina:170, litros:110, servico:320, area:130, estacao:160},
     totais: ['litros'],
     formTitle:'Novo lançamento', formButton:'Salvar lançamento',
@@ -2206,7 +2162,7 @@ function pageDieselEstoque(){
     ${filtroEst ? `<div class="aviso-filtro no-print">Filtrando estação: <b>${esc(nomeFiltroEst)}</b> · o saldo mostra só essa estação <button class="ghost" type="button" onclick="limparFiltroEstacaoExtrato()">limpar</button></div>` : ''}
     <div class="panel panel-excel" style="padding:0;">
       <div class="table-wrap">
-        <table id="tbl-${tk}" class="cards-cel tbl-excel sel-excel extrato" style="width:${larguraTabela}px;">
+        <table id="tbl-${tk}" class="tbl-excel sel-excel extrato" style="width:${larguraTabela}px;">
           <colgroup>${colunas.map(c=>`<col data-key="${c.key}" style="width:${larg[c.key]}px">`).join('')}<col data-key="__acoes" style="width:44px"></colgroup>
           <thead><tr>${colunas.map(th).join('')}<th class="no-print"></th></tr></thead>
           <tbody>${linhas || `<tr><td colspan="${colunas.length+1}" class="empty">Nenhuma movimentação ainda. Lance a primeira entrada acima.</td></tr>`}</tbody>
