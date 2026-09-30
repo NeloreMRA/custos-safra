@@ -93,7 +93,7 @@
     body{background:#fff;}
     table.tbl-excel{table-layout:auto; width:100% !important;}
     .resumo-grid{grid-template-columns:repeat(3,1fr); gap:10px;}
-    .resumo-card h3, table.resumo .barra i, tfoot tr.linha-total td{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    .resumo-card h3, table.resumo .barra i, tfoot tr.linha-total td, .saldo-grande, tr.mov-entrada td, tr.mov-acerto td, .tag-mov{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
     table.resumo{font-size:10px;}
   }
 
@@ -153,6 +153,31 @@
   tfoot td.num{text-align:right;}
   tfoot td.total-rotulo small{font-weight:400; color:var(--ink-soft); margin-left:4px;}
   .panel-excel{width:fit-content; max-width:100%;}
+
+  /* ESTOQUE DIESEL */
+  .estoque-topo{display:grid; grid-template-columns:1.4fr 1fr 1fr 1fr; gap:12px; margin-bottom:16px;}
+  .estoque-topo .metric{text-align:center;}
+  .saldo-grande{background:var(--green-dark); border-color:var(--green-dark);}
+  .saldo-grande .val{color:#fff; font-size:28px;}
+  .saldo-grande .val.text-red{color:#ffd2c8 !important;}
+  .saldo-grande .lbl{color:#d7e8cd;}
+  .cor-entrada{color:#3f7a2b !important;}
+  .cor-acerto{color:#c26a12 !important;}
+  .form-entrada{border-top:4px solid #5a9a42;}
+  .form-acerto{border-top:4px solid #e08a1e;}
+  .btn-acerto{margin-top:12px; background:#e08a1e; color:#fff; border:none; padding:8px 16px; border-radius:6px; font-size:13px; cursor:pointer;}
+  .btn-acerto:hover{background:#c26a12;}
+  .previa-acerto{margin-top:10px; font-size:12.5px; color:var(--ink-soft); background:#fbfaf6; border:1px dashed var(--line); border-radius:6px; padding:8px 10px;}
+  .previa-acerto.ativa{color:#7a4a10; background:#fff3e2; border-color:#f0c48a;}
+  table.extrato td{padding:7px 10px; white-space:nowrap; text-overflow:ellipsis;}
+  table.extrato td.td-acoes{padding:0 4px; text-overflow:clip;}
+  table.tbl-excel tfoot td.total-rotulo{overflow:visible;}
+  tr.mov-entrada td{background:#eef6e8;}
+  tr.mov-acerto td{background:#fff1df;}
+  .tag-mov{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px;}
+  .tag-entrada{background:#5a9a42; color:#fff;}
+  .tag-acerto{background:#e08a1e; color:#fff;}
+  .tag-uso{background:#ece8dc; color:var(--ink);}
 
   /* RESUMO DIESEL */
   .resumo-kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px;}
@@ -221,6 +246,14 @@
     .cell-unit-junto{justify-content:flex-start;}
     .cell-unit-junto input{text-align:left;}
     .resumo-kpis{grid-template-columns:1fr 1fr 1fr; gap:8px;}
+    .estoque-topo{grid-template-columns:1fr 1fr 1fr;}
+    .estoque-topo .saldo-grande{grid-column:1 / -1;}
+    .estoque-topo .val{font-size:16px;}
+    .estoque-topo .saldo-grande .val{font-size:26px;}
+    .btn-acerto{width:100%; padding:13px; font-size:15px;}
+    table.extrato td{white-space:normal;}
+    table.cards-cel td.td-num{justify-content:flex-start; text-align:left;}
+    table.cards-cel td.td-acoes:empty{display:none;}
     .resumo-kpis .val{font-size:17px;}
     .resumo-kpis .metric{padding:10px 6px;}
     .filtros-resumo > div{max-width:none;}
@@ -797,7 +830,7 @@ function displayValueForFilter(cfg, row, key){
   if(col.type==='pct') v = fmtPct(v);
   else if(col.type==='money') v = fmtR(v);
   else if(col.type==='pctinput') v = fmtPct(v);
-  else if(col.type==='date') v = v || '';
+  else if(col.type==='date') v = v ? fmtData(v) || v : '(vazio)';
   else if(v===undefined||v===null||v==='') v = '(vazio)';
   return String(v);
 }
@@ -1731,12 +1764,6 @@ function bindStaticEvents(){
     });
   });
 
-  // Estoque: ao terminar de editar uma linha, recalcula o saldo das linhas seguintes.
-  const tbEstoque = document.getElementById('tbody-diesel-estoque');
-  if(tbEstoque && tbEstoque.dataset.recalcBound!=='1'){
-    tbEstoque.dataset.recalcBound = '1';
-    tbEstoque.addEventListener('change', ()=>render());
-  }
 
   bindExcelEnterNavigation();
 }
@@ -1897,24 +1924,33 @@ function ordenarDiesel(){
   diesel.estoque.sort((a,b)=>String(a.data||'').localeCompare(String(b.data||'')) || porCriacao(a,b));
 }
 
-// Estoque: cada linha é a quantidade total medida no tanque naquela data.
-// O "Usado" é o que saiu do Controle Diesel desde essa data até a próxima
-// medição, e o saldo recomeça a cada nova linha (não acumula erro).
-function calcEstoqueDiesel(){
-  const entradas = diesel.estoque.filter(e=>e.data).slice()
-    .sort((a,b)=>a.data.localeCompare(b.data) || (a.criadoEm||0)-(b.criadoEm||0));
-  const usos = diesel.lancamentos.filter(l=>l.data);
-  const porId = {};
+// Estoque: saldo corrido do tanque = entradas − usos (Controle Diesel) ± acertos.
+// A data só serve para ordenar o extrato; não muda a conta. O acerto compara a
+// medição com o saldo atual (o mesmo que aparece na tela).
+// diesel.estoque guarda entradas {tipo:'entrada', entrada} e acertos
+// {tipo:'acerto', entrada:<diferença>, medido, saldoSistema}. Linhas antigas sem tipo são entradas.
+function tipoEstoque(e){ return e && e.tipo==='acerto' ? 'acerto' : 'entrada'; }
+const ORDEM_MOV = {entrada:0, uso:1, acerto:2};
+function extratoDiesel(){
+  const movs = [
+    ...diesel.estoque.map(e=>{
+      const tipo = tipoEstoque(e);
+      return {id:e.id, data:e.data||'', tipo, litros:Number(e.entrada||0), criadoEm:e.criadoEm||0,
+        desc: tipo==='acerto' ? `Medição: ${fmt(e.medido,1)} L (sistema: ${fmt(e.saldoSistema,1)} L)` : (e.obs || 'Entrada no tanque')};
+    }),
+    ...diesel.lancamentos.map(l=>({id:l.id, data:l.data||'', tipo:'uso', litros:-Number(l.litros||0), criadoEm:l.criadoEm||0,
+      desc:[l.maquina, l.servico].filter(Boolean).join(' · ')})),
+  ].sort((a,b)=>a.data.localeCompare(b.data) || ORDEM_MOV[a.tipo]-ORDEM_MOV[b.tipo] || a.criadoEm-b.criadoEm);
   let saldo = 0;
-  entradas.forEach((e,i)=>{
-    const ini = e.data, fim = entradas[i+1] ? entradas[i+1].data : null;
-    const usado = usos.filter(l=>l.data>=ini && (!fim || l.data<fim)).reduce((s,l)=>s+Number(l.litros||0),0);
-    saldo = Number(e.entrada||0) - usado;
-    porId[e.id] = {usado, saldo};
-  });
-  const primeira = entradas[0] ? entradas[0].data : null;
-  const usadoAntes = usos.filter(l=>!primeira || l.data<primeira).reduce((s,l)=>s+Number(l.litros||0),0);
-  return {porId, saldoAtual: saldo, usadoAntes, temEntradas: entradas.length>0};
+  movs.forEach(m=>{ saldo += m.litros; m.saldo = saldo; m.tipoNome = {entrada:'Entrada', uso:'Uso', acerto:'Acerto'}[m.tipo]; });
+  return movs;
+}
+function calcEstoqueDiesel(){
+  const movs = extratoDiesel();
+  const soma = t => movs.filter(m=>m.tipo===t).reduce((s,m)=>s+m.litros,0);
+  return {movs, saldoAtual: movs.length ? movs[movs.length-1].saldo : 0,
+    totalEntradas: soma('entrada'), totalUsado: -soma('uso'), totalAcertos: soma('acerto'),
+    temEntradas: diesel.estoque.length>0};
 }
 
 function buildDieselControleCfg(){
@@ -1943,30 +1979,6 @@ function buildDieselControleCfg(){
     onRowDelete: r=>excluirLinhaDiesel('lancamentos', r),
   };
 }
-function buildDieselEstoqueCfg(){
-  return {
-    tableKey:'diesel-estoque', title:'🛢️ Estoque Diesel',
-    caption:'Cada vez que encher (ou medir) o tanque, lance a data e a quantidade total que ficou no tanque. O "Usado" é a soma do Controle Diesel dessa data até o próximo lançamento, e o saldo é Qtd Total − Usado.',
-    rows: diesel.estoque, exportName:'estoque_diesel', exportFileName:`Estoque_Diesel_${hojeISO()}.xlsx`,
-    computeDerived: r=>calcEstoqueDiesel().porId[r.id] || {usado:0, saldo:0},
-    semLinhaEmBranco: true, cardsNoCelular: true,
-    larguras: {data:140, entrada:130, usado:120, saldo:120},
-    totais: ['usado'],
-    formTitle:'Novo lançamento do tanque', formButton:'Salvar',
-    columns: [
-      {key:'data', label:'Data', type:'date', formDefault: hojeISO},
-      {key:'entrada', label:'Qtd Total', type:'number', unit:'L', brDecimal:true},
-      {key:'usado', label:'Usado', derived:true, unit:'L'},
-      {key:'saldo', label:'Saldo', derived:true, unit:'L'},
-    ],
-    newRow: ()=>({id:novoIdDiesel('e'), data:hojeISO(), entrada:'', criadoEm:Date.now(), criadoPor:usuarioAtual()}),
-    validate: r=> !r.data ? 'Informe a data.' : !(Number(r.entrada)>0) ? 'Informe a quantidade total no tanque.' : '',
-    prepareRow: r=>{ r.id = novoIdDiesel('e'); r.criadoEm = Date.now(); r.criadoPor = usuarioAtual(); },
-    onRowChange: (r, imediato)=>salvarLinhaDiesel('estoque', r, imediato),
-    onRowDelete: r=>excluirLinhaDiesel('estoque', r),
-  };
-}
-
 function dieselLancamentosFiltrados(){
   const f = dieselFiltro;
   return diesel.lancamentos.filter(l=>
@@ -2052,16 +2064,147 @@ function pageDieselControle(){
   </div>`;
   return renderTablePage(cfg);
 }
+const LARGURAS_EXTRATO = {data:110, tipoNome:100, desc:340, litros:120, saldo:120};
 function pageDieselEstoque(){
-  const cfg = buildDieselEstoqueCfg();
   const est = calcEstoqueDiesel();
-  cfg.formHtml = `<div class="no-print">${renderAddForm(cfg)}</div>`;
-  cfg.metricsHtml = `
-    ${est.usadoAntes>0 ? `<div class="aviso">⚠️ ${fmt(est.usadoAntes,1)} L foram lançados no Controle Diesel antes do primeiro lançamento do tanque e não entram no saldo.</div>` : ''}
-    <div class="metric" style="display:inline-block; min-width:170px; margin-bottom:12px;">
-      <div class="val ${est.saldoAtual<0?'text-red':''}">${est.temEntradas?fmt(est.saldoAtual,1)+' L':'—'}</div><div class="lbl">Saldo no tanque</div>
-    </div>`;
-  return renderTablePage(cfg);
+  const tk = 'diesel-extrato';
+  const colunas = [
+    {key:'data', label:'Data', type:'date'}, {key:'tipoNome', label:'Tipo', type:'text'}, {key:'desc', label:'Descrição', type:'text'},
+    {key:'litros', label:'Litros', type:'number'}, {key:'saldo', label:'Saldo', type:'number'},
+  ];
+  // mais recente em cima (a não ser que o usuário ordene pelo ▾)
+  const visiveis = dashboardRows(tk, est.movs.slice().reverse(), colunas);
+  const cfgExtrato = tableRegistry[tk];
+  cfgExtrato.larguras = LARGURAS_EXTRATO;
+  const larg = larguraColunas(cfgExtrato);
+  const larguraTabela = Object.values(larg).reduce((a,b)=>a+b,0) + 44;
+  const filtrado = visiveis.length !== est.movs.length;
+  const th = c=>{
+    const ts = tableState[tk];
+    const ativo = ts.colFilters[c.key] || ts.sortKey===c.key;
+    const seta = ts.sortKey===c.key ? (ts.sortDir>0?' ▲':' ▼') : '';
+    return `<th><div class="th-flex"><span>${c.label}${seta}</span><button class="th-filter-btn ${ativo?'active':''}" onclick="toggleFilterMenu('${tk}','${c.key}', this)">▾</button></div><span class="col-resizer no-print" title="Arraste para mudar a largura (duplo clique volta ao padrão)" onpointerdown="iniciarResizeColuna(event,'${tk}','${c.key}')" ondblclick="resetLarguraColuna('${tk}','${c.key}')"></span></th>`;
+  };
+  const sinal = v => (v>0?'+':'') + fmt(v,1).replace(/,0$/,'') + ' L';
+  const linhas = visiveis.map(m=>`
+    <tr class="mov-${m.tipo}">
+      <td data-label="Data">${fmtData(m.data)}</td>
+      <td data-label="Tipo"><span class="tag-mov tag-${m.tipo}">${m.tipoNome}</span></td>
+      <td data-label="Descrição" title="${esc(m.desc)}">${esc(m.desc)}</td>
+      <td data-label="Litros" class="td-num" data-num="${m.litros}" data-unit="L">${sinal(m.litros)}</td>
+      <td data-label="Saldo" class="td-num ${m.saldo<0?'text-red':''}" data-num="${m.saldo}" data-unit="L">${fmt(m.saldo,1).replace(/,0$/,'')} L</td>
+      <td class="no-print td-acoes">${m.tipo==='uso' ? '' : `<button class="ghost" title="Excluir" onclick="excluirMovEstoque('${m.id}')">✕</button>`}</td>
+    </tr>`).join('');
+  return `
+    <h2>🛢️ Estoque Diesel</h2>
+    <div class="caption">Saldo do tanque = entradas − usado (Controle Diesel) ± acertos. O acerto corrige a diferença da medição.</div>
+
+    <div class="estoque-topo">
+      <div class="metric saldo-grande"><div class="val ${est.saldoAtual<0?'text-red':''}">${fmt(est.saldoAtual,1).replace(/,0$/,'')} L</div><div class="lbl">Saldo atual no tanque</div></div>
+      <div class="metric"><div class="val cor-entrada">+${fmt(est.totalEntradas,1).replace(/,0$/,'')} L</div><div class="lbl">Entradas</div></div>
+      <div class="metric"><div class="val">−${fmt(est.totalUsado,1).replace(/,0$/,'')} L</div><div class="lbl">Usado</div></div>
+      <div class="metric"><div class="val cor-acerto">${sinal(est.totalAcertos)}</div><div class="lbl">Acertos</div></div>
+    </div>
+
+    <div class="grid cols-2 no-print estoque-forms">
+      <div class="panel form-entrada">
+        <p class="section-title">🟢 Entrada de diesel</p>
+        <div class="grid cols-3">
+          <div><label>Data</label><input type="date" id="ent-data" value="${hojeISO()}"></div>
+          <div><label>Litros que entraram</label><input type="text" inputmode="decimal" id="ent-litros" placeholder="Ex: 5.500"></div>
+          <div><label>Observação (opcional)</label><input type="text" id="ent-obs" placeholder="Ex: NF 1234, fornecedor"></div>
+        </div>
+        <button class="primary" type="button" style="margin-top:12px;" onclick="salvarEntradaDiesel()">Lançar entrada</button>
+      </div>
+      <div class="panel form-acerto">
+        <p class="section-title">🟠 Acerto de diesel (medição)</p>
+        <div class="grid cols-2">
+          <div><label>Data da medição</label><input type="date" id="ace-data" value="${hojeISO()}"></div>
+          <div><label>Quanto tem no tanque (medido)</label><input type="text" inputmode="decimal" id="ace-medido" placeholder="Ex: 5.400" oninput="previaAcertoDiesel()"></div>
+        </div>
+        <div id="ace-previa" class="previa-acerto">Digite o valor medido para ver o acerto.</div>
+        <button class="btn-acerto" type="button" onclick="salvarAcertoDiesel()">Lançar acerto</button>
+      </div>
+    </div>
+
+    <div class="toolbar no-print">
+      <button class="secondary" onclick="exportEstoqueDiesel()">⬇️ Exportar Excel</button>
+      <button class="secondary" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+    <p class="section-title">Extrato do tanque</p>
+    <div class="panel panel-excel" style="padding:0;">
+      <div class="table-wrap">
+        <table id="tbl-${tk}" class="cards-cel tbl-excel sel-excel extrato" style="width:${larguraTabela}px;">
+          <colgroup>${colunas.map(c=>`<col data-key="${c.key}" style="width:${larg[c.key]}px">`).join('')}<col data-key="__acoes" style="width:44px"></colgroup>
+          <thead><tr>${colunas.map(th).join('')}<th class="no-print"></th></tr></thead>
+          <tbody>${linhas || `<tr><td colspan="6" class="empty">Nenhuma movimentação ainda. Lance a primeira entrada acima.</td></tr>`}</tbody>
+          <tfoot><tr class="linha-total"><td class="total-rotulo">TOTAL <small>(${visiveis.length} ${visiveis.length===1?'linha':'linhas'}${filtrado?', filtrado':''})</small></td><td class="vazio"></td><td class="vazio"></td><td class="num">${sinal(visiveis.reduce((s,m)=>s+m.litros,0))}</td><td class="vazio"></td><td class="no-print vazio"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  `;
+}
+function salvarEntradaDiesel(){
+  const data = document.getElementById('ent-data').value;
+  const litros = parseNumBR(document.getElementById('ent-litros').value);
+  const obs = document.getElementById('ent-obs').value.trim();
+  if(!data){ alert('Informe a data.'); return; }
+  if(!(Number(litros)>0)){ alert('Informe quantos litros entraram no tanque.'); return; }
+  const row = {id:novoIdDiesel('e'), tipo:'entrada', data, entrada:litros, obs, criadoEm:Date.now(), criadoPor:usuarioAtual()};
+  diesel.estoque.push(row);
+  salvarLinhaDiesel('estoque', row, true);
+  render();
+}
+function previaAcertoDiesel(){
+  const el = document.getElementById('ace-previa');
+  if(!el) return;
+  const medido = parseNumBR(document.getElementById('ace-medido').value);
+  if(medido===''){ el.textContent = 'Digite o valor medido para ver o acerto.'; el.className='previa-acerto'; return; }
+  const sistema = calcEstoqueDiesel().saldoAtual, dif = medido - sistema;
+  const f = v => fmt(v,1).replace(/,0$/,'');
+  el.innerHTML = `Saldo no sistema: <strong>${f(sistema)} L</strong> · Medido: <strong>${f(medido)} L</strong> → acerto de <strong>${dif>0?'+':''}${f(dif)} L</strong>`;
+  el.className = 'previa-acerto ativa';
+}
+function salvarAcertoDiesel(){
+  const data = document.getElementById('ace-data').value;
+  const medido = parseNumBR(document.getElementById('ace-medido').value);
+  if(!data){ alert('Informe a data da medição.'); return; }
+  if(medido==='' || medido<0){ alert('Informe quanto tem no tanque.'); return; }
+  const sistema = calcEstoqueDiesel().saldoAtual;
+  const dif = Math.round((medido - sistema)*100)/100;
+  if(dif===0){ alert('O saldo do sistema já bate com a medição. Nenhum acerto necessário.'); return; }
+  if(!confirm(`Lançar acerto de ${dif>0?'+':''}${fmt(dif,1)} L?\n\nSistema: ${fmt(sistema,1)} L\nMedido: ${fmt(medido,1)} L`)) return;
+  const row = {id:novoIdDiesel('a'), tipo:'acerto', data, entrada:dif, medido, saldoSistema:sistema, criadoEm:Date.now(), criadoPor:usuarioAtual()};
+  diesel.estoque.push(row);
+  salvarLinhaDiesel('estoque', row, true);
+  render();
+}
+function excluirMovEstoque(id){
+  const row = diesel.estoque.find(e=>e.id===id);
+  if(!row) return;
+  const nome = tipoEstoque(row)==='acerto' ? 'este acerto' : 'esta entrada';
+  if(confirm(`Excluir ${nome} de ${fmt(row.entrada,1)} L? Não dá pra desfazer.`)) excluirLinhaDiesel('estoque', row);
+}
+const COLS_EXTRATO = [
+  {key:'data', label:'Data', type:'date'}, {key:'tipoNome', label:'Tipo'}, {key:'desc', label:'Descrição'},
+  {key:'litros', label:'Litros', type:'number'}, {key:'saldo', label:'Saldo', type:'number'},
+];
+async function addExtratoSheet(wb, nome){
+  const movs = calcEstoqueDiesel().movs;
+  const ws = await addSheetForTable(wb, nome, COLS_EXTRATO, movs, ()=>({}));
+  ws.getColumn(3).width = 48;
+  movs.forEach((m,i)=>{
+    const cor = m.tipo==='entrada' ? 'FFE3F0DA' : m.tipo==='acerto' ? 'FFFCE5CC' : null;
+    if(cor) ws.getRow(i+2).eachCell(c=>{ c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:cor}}; });
+  });
+  addLinhaTotal(ws, ['SALDO', '', '', movs.reduce((s,m)=>s+m.litros,0), movs.length ? movs[movs.length-1].saldo : 0]);
+  return ws;
+}
+async function exportEstoqueDiesel(){
+  const wb = new ExcelJS.Workbook();
+  await addExtratoSheet(wb, 'Estoque Diesel');
+  const buf = await wb.xlsx.writeBuffer();
+  downloadBuffer(buf, `Estoque_Diesel_${hojeISO()}.xlsx`);
 }
 function pageDieselResumo(){
   const lancs = dieselLancamentosFiltrados();
@@ -2160,9 +2303,10 @@ async function exportBackupCompleto(){
 
   if(dieselPronto){
     ordenarDiesel();
-    const ctrl = buildDieselControleCfg(), est = buildDieselEstoqueCfg();
+    const ctrl = buildDieselControleCfg();
     await add('Diesel', 'Diesel Controle', ctrl.columns, ctrl.rows, ctrl.computeDerived);
-    await add('Diesel', 'Diesel Estoque', est.columns, est.rows, est.computeDerived);
+    const wsEst = await addExtratoSheet(wb, nomeAba('Diesel Estoque'));
+    itens.push(['Diesel', wsEst.name, calcEstoqueDiesel().movs.length]);
     const antes = wb.worksheets.length;
     await addResumoDieselSheets(wb, diesel.lancamentos, t=>nomeAba(`Diesel ${t}`));
     wb.worksheets.slice(antes).forEach(ws=>itens.push(['Diesel', ws.name, ws.rowCount-2]));
