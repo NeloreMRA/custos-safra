@@ -91,6 +91,10 @@
     tbody td input, tbody td select{border:none !important; background:transparent !important; padding:2px 3px !important; -webkit-appearance:none;}
     tr{page-break-inside:avoid;}
     body{background:#fff;}
+    table.tbl-excel{table-layout:auto; width:100% !important;}
+    .resumo-grid{grid-template-columns:repeat(3,1fr); gap:10px;}
+    .resumo-card h3, table.resumo .barra i, tfoot tr.linha-total td{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+    table.resumo{font-size:10px;}
   }
 
   /* LOGIN FIREBASE */
@@ -124,6 +128,46 @@
   table.simples th{padding:8px 10px;}
   table.simples td.num{text-align:right;}
   .aviso{background:#fff6e0; border:1px solid #f0d9a8; color:#7a5a17; border-radius:8px; padding:10px 12px; font-size:13px; margin-bottom:14px;}
+
+  /* TABELA ESTILO EXCEL */
+  table.tbl-excel{table-layout:fixed; min-width:0 !important;}
+  table.tbl-excel td{overflow:hidden;}
+  table.tbl-excel tbody td input, table.tbl-excel tbody td select{min-width:0;}
+  table.tbl-excel th{overflow:hidden;}
+  table.tbl-excel .th-flex span{overflow:hidden; text-overflow:ellipsis;}
+  .col-resizer{position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize; z-index:2;}
+  .col-resizer:hover, body.redimensionando .col-resizer:active{background:rgba(76,107,63,.35);}
+  body.redimensionando, body.redimensionando *{cursor:col-resize !important; user-select:none;}
+  td.td-acoes{white-space:nowrap; text-align:center; padding:0 4px;}
+  .sel-cb{width:auto !important; margin:0 6px 0 0; vertical-align:middle; cursor:pointer;}
+  th.th-sel{text-align:center;}
+  tr.linha-sel td{background:#eef3e8 !important;}
+  tfoot tr.linha-total td{background:#f5f3ea; font-weight:700; padding:8px 10px; border-top:2px solid var(--green-dark); white-space:nowrap;}
+  tfoot td.num{text-align:right;}
+  tfoot td.total-rotulo small{font-weight:400; color:var(--ink-soft); margin-left:4px;}
+  .panel-excel{width:fit-content; max-width:100%;}
+  .barra-soma{display:none;}
+  .barra-soma.ativa{display:flex; flex-wrap:wrap; gap:18px; align-items:center; padding:10px 14px; background:var(--focus); border-top:1px solid var(--line); font-size:13px; border-radius:0 0 10px 10px;}
+  .barra-soma button{margin-left:auto;}
+
+  /* RESUMO DIESEL */
+  .resumo-kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:18px;}
+  .resumo-kpis .metric{text-align:center;}
+  .resumo-kpis .val{font-size:24px;}
+  .resumo-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; align-items:start;}
+  .resumo-card{background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+  .resumo-card h3{margin:0; padding:11px 12px; text-align:center; font-size:14.5px; background:var(--green-dark); color:#fff; letter-spacing:.2px;}
+  table.resumo{width:100%; min-width:0; table-layout:fixed; font-size:13px;}
+  table.resumo th{padding:8px 12px; text-align:center; font-size:11.5px;}
+  table.resumo th:first-child, table.resumo td:first-child{text-align:left;}
+  table.resumo td{padding:8px 12px; border-right:none; vertical-align:middle;}
+  table.resumo td.num{text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  table.resumo .sub{display:block; font-size:11px; color:var(--ink-soft);}
+  table.resumo .barra{height:6px; background:#ece8dc; border-radius:3px; margin-top:4px; overflow:hidden;}
+  table.resumo .barra i{display:block; height:100%; background:var(--wheat); border-radius:3px;}
+  table.resumo tr.total td{font-weight:700; background:#f5f3ea; border-top:2px solid var(--green-dark);}
+  .filtros-resumo{display:flex; flex-wrap:wrap; gap:12px; align-items:end;}
+  .filtros-resumo > div{flex:1 1 170px; max-width:240px;}
 
   /* CELULAR */
   @media (max-width:760px){
@@ -159,6 +203,19 @@
     table.cards-cel td.td-acoes button{padding:7px 14px; font-size:13px;}
     table.cards-cel td.td-acoes button::after{content:' Excluir';}
     table.cards-cel td.empty{display:block; padding:12px;}
+    table.cards-cel{width:100% !important;}
+    .panel-excel{width:auto;}
+    table.cards-cel tfoot{display:block;}
+    table.cards-cel tfoot tr{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 12px; padding:12px; border-bottom:none; background:#f5f3ea;}
+    table.cards-cel tfoot td{display:block; width:auto; min-height:0; padding:0; border:none; background:none; font-weight:700; font-size:15px;}
+    table.cards-cel tfoot td::before{display:none;}
+    table.cards-cel tfoot td.vazio{display:none;}
+    table.cards-cel .sel-cb, .barra-soma{display:none !important;}
+    table.cards-cel tr.linha-sel td{background:transparent !important;}
+    .resumo-kpis{grid-template-columns:1fr 1fr 1fr; gap:8px;}
+    .resumo-kpis .val{font-size:17px;}
+    .resumo-kpis .metric{padding:10px 6px;}
+    .filtros-resumo > div{max-width:none;}
   }
 </style>
 </head>
@@ -845,11 +902,19 @@ function renderTablePage(cfg){
   tableRegistry[cfg.tableKey] = cfg;
   const ts = tableState[cfg.tableKey];
 
+  const excel = !!cfg.larguras;
   const theadCols = cfg.columns.map(c=>{
     const active = ts.colFilters[c.key] || ts.sortKey===c.key;
     const arrow = ts.sortKey===c.key ? (ts.sortDir>0?' ▲':' ▼') : '';
-    return `<th><div class="th-flex"><span>${c.label}${arrow}</span><button class="th-filter-btn ${active?'active':''}" onclick="toggleFilterMenu('${cfg.tableKey}','${c.key}', this)">▾</button></div></th>`;
-  }).join('') + '<th class="no-print"></th>';
+    const resizer = excel ? `<span class="col-resizer no-print" title="Arraste para mudar a largura (duplo clique volta ao padrão)" onpointerdown="iniciarResizeColuna(event,'${cfg.tableKey}','${c.key}')" ondblclick="resetLarguraColuna('${cfg.tableKey}','${c.key}')"></span>` : '';
+    return `<th><div class="th-flex"><span>${c.label}${arrow}</span><button class="th-filter-btn ${active?'active':''}" onclick="toggleFilterMenu('${cfg.tableKey}','${c.key}', this)">▾</button></div>${resizer}</th>`;
+  }).join('') + (cfg.selecionavel
+    ? `<th class="no-print th-sel"><input type="checkbox" class="sel-cb" title="Selecionar todas as linhas visíveis" onchange="selecionarTodasLinhas('${cfg.tableKey}', this.checked)"></th>`
+    : '<th class="no-print"></th>');
+  const larg = excel ? larguraColunas(cfg) : null;
+  const colgroup = excel ? `<colgroup>${cfg.columns.map(c=>`<col data-key="${c.key}" style="width:${larg[c.key]}px">`).join('')}<col data-key="__acoes" style="width:${cfg.selecionavel?64:44}px"></colgroup>` : '';
+  const larguraTabela = excel ? Object.values(larg).reduce((a,b)=>a+b,0) + (cfg.selecionavel?64:44) : 0;
+  const estiloTabela = excel ? `style="width:${larguraTabela}px;"` : (cfg.minWidth?`style="min-width:${cfg.minWidth}px;"`:'');
 
   return `
     <h2>${cfg.title}</h2>
@@ -861,13 +926,16 @@ function renderTablePage(cfg){
       <button class="secondary" onclick="window.print()">🖨️ Imprimir</button>
     </div>
     ${cfg.metricsHtml || ''}
-    <div class="panel" style="padding:0;">
+    <div class="panel ${excel?'panel-excel':''}" style="padding:0;">
       <div class="table-wrap">
-        <table id="tbl-${cfg.tableKey}" class="${cfg.cardsNoCelular?'cards-cel':''}" ${cfg.minWidth?`style="min-width:${cfg.minWidth}px;"`:''}>
+        <table id="tbl-${cfg.tableKey}" class="${cfg.cardsNoCelular?'cards-cel':''} ${excel?'tbl-excel':''}" ${estiloTabela}>
+          ${colgroup}
           <thead><tr>${theadCols}</tr></thead>
           <tbody id="tbody-${cfg.tableKey}"></tbody>
+          ${cfg.totais ? `<tfoot id="tfoot-${cfg.tableKey}"></tfoot>` : ''}
         </table>
       </div>
+      ${cfg.selecionavel ? `<div class="barra-soma no-print" id="soma-${cfg.tableKey}"></div>` : ''}
     </div>
   `;
 }
@@ -928,12 +996,107 @@ function renderTbody(tableKey){
   if(!tbody) return;
   if(!rows.length){
     tbody.innerHTML = `<tr><td colspan="${cfg.columns.length+1}" class="empty">Nenhum registro encontrado (verifique os filtros) ou lance um novo registro acima.</td></tr>`;
+    atualizarTotaisTabela(tableKey);
     return;
   }
+  const sel = selecaoTabela(tableKey);
   tbody.innerHTML = rows.map((row,idx)=>{
     const cells = cfg.columns.map(col=>tableCellHtml(cfg, row, idx, col).replace('<td', `<td data-label="${esc(col.label)}"`)).join('');
-    return `<tr data-row-idx="${idx}">${cells}<td class="no-print td-acoes"><button class="ghost" onclick="deleteTableRow('${tableKey}', ${idx})">✕</button></td></tr>`;
+    const marcado = cfg.selecionavel && sel.has(row.id);
+    const cb = cfg.selecionavel ? `<input type="checkbox" class="sel-cb" title="Selecionar para somar" ${marcado?'checked':''} onchange="selecionarLinha('${tableKey}', ${idx}, this.checked)">` : '';
+    return `<tr data-row-idx="${idx}" class="${marcado?'linha-sel':''}">${cells}<td class="no-print td-acoes">${cb}<button class="ghost" onclick="deleteTableRow('${tableKey}', ${idx})">✕</button></td></tr>`;
   }).join('');
+  atualizarTotaisTabela(tableKey);
+}
+
+// =================== TABELA ESTILO EXCEL: total, seleção e largura das colunas ===================
+const selecoesTabela = {};
+function selecaoTabela(tableKey){ return selecoesTabela[tableKey] = selecoesTabela[tableKey] || new Set(); }
+function valorColuna(cfg, row, col){ return Number(col.derived ? (cfg.computeDerived(row)||{})[col.key] : row[col.key]) || 0; }
+function fmtTotalColuna(col, v){ return col.type==='money' ? fmtR(v) : fmt(v, col.decTotal ?? 1) + (col.unit ? ' '+col.unit : ''); }
+function atualizarTotaisTabela(tableKey){
+  const cfg = tableRegistry[tableKey];
+  if(!cfg) return;
+  const rows = tableRowsVisible[tableKey] || [];
+  const tfoot = document.getElementById('tfoot-'+tableKey);
+  if(tfoot && cfg.totais){
+    const filtrado = rows.length !== cfg.rows.length;
+    tfoot.innerHTML = `<tr class="linha-total">${cfg.columns.map((col,i)=>{
+      if(i===0) return `<td class="total-rotulo" data-label="TOTAL">TOTAL <small>(${rows.length} ${rows.length===1?'linha':'linhas'}${filtrado?', filtrado':''})</small></td>`;
+      if(cfg.totais.includes(col.key)) return `<td class="num" data-label="${esc(col.label)}">${fmtTotalColuna(col, rows.reduce((s,r)=>s+valorColuna(cfg,r,col),0))}</td>`;
+      return `<td class="vazio"></td>`;
+    }).join('')}<td class="no-print vazio"></td></tr>`;
+  }
+  const barra = document.getElementById('soma-'+tableKey);
+  if(barra && cfg.selecionavel){
+    const sel = selecaoTabela(tableKey);
+    const escolhidas = cfg.rows.filter(r=>sel.has(r.id));
+    if(!escolhidas.length){ barra.innerHTML = ''; barra.classList.remove('ativa'); }
+    else{
+      const somas = (cfg.totais||[]).map(k=>{ const col = cfg.columns.find(c=>c.key===k); return `<span>${col.label}: <strong>${fmtTotalColuna(col, escolhidas.reduce((s,r)=>s+valorColuna(cfg,r,col),0))}</strong></span>`; }).join('');
+      barra.innerHTML = `<span>✔ <strong>${escolhidas.length}</strong> ${escolhidas.length===1?'linha selecionada':'linhas selecionadas'}</span>${somas}<button class="ghost" type="button" onclick="limparSelecao('${tableKey}')">Limpar seleção</button>`;
+      barra.classList.add('ativa');
+    }
+  }
+}
+function selecionarLinha(tableKey, idx, marcado){
+  const row = (tableRowsVisible[tableKey]||[])[idx];
+  if(!row) return;
+  const sel = selecaoTabela(tableKey);
+  if(marcado) sel.add(row.id); else sel.delete(row.id);
+  const tr = document.querySelector(`#tbody-${tableKey} tr[data-row-idx="${idx}"]`);
+  if(tr) tr.classList.toggle('linha-sel', marcado);
+  atualizarTotaisTabela(tableKey);
+}
+function selecionarTodasLinhas(tableKey, marcado){
+  const sel = selecaoTabela(tableKey);
+  (tableRowsVisible[tableKey]||[]).forEach(r=>{ if(marcado) sel.add(r.id); else sel.delete(r.id); });
+  renderTbody(tableKey);
+}
+function limparSelecao(tableKey){
+  selecaoTabela(tableKey).clear();
+  const th = document.querySelector(`#tbl-${tableKey} .th-sel input`);
+  if(th) th.checked = false;
+  renderTbody(tableKey);
+}
+function lerLargurasSalvas(){ try{ return JSON.parse(localStorage.getItem('larguraColunas')||'{}'); }catch(e){ return {}; } }
+function larguraColunas(cfg){
+  const salvas = lerLargurasSalvas()[cfg.tableKey] || {};
+  const r = {};
+  cfg.columns.forEach(c=>{ r[c.key] = Number(salvas[c.key]) || cfg.larguras[c.key] || 120; });
+  return r;
+}
+function salvarLarguraColuna(tableKey, colKey, w){
+  const todas = lerLargurasSalvas();
+  todas[tableKey] = todas[tableKey] || {};
+  if(w===null) delete todas[tableKey][colKey]; else todas[tableKey][colKey] = w;
+  try{ localStorage.setItem('larguraColunas', JSON.stringify(todas)); }catch(e){}
+}
+function ajustarLarguraTabela(table){
+  table.style.width = [...table.querySelectorAll('col')].reduce((s,c)=>s+(parseFloat(c.style.width)||0),0) + 'px';
+}
+function iniciarResizeColuna(ev, tableKey, colKey){
+  ev.preventDefault(); ev.stopPropagation();
+  const table = document.getElementById('tbl-'+tableKey);
+  const col = table && table.querySelector(`col[data-key="${colKey}"]`);
+  if(!col) return;
+  const x0 = ev.clientX, w0 = parseFloat(col.style.width) || 120;
+  document.body.classList.add('redimensionando');
+  const mover = e=>{ col.style.width = Math.max(50, Math.round(w0 + e.clientX - x0)) + 'px'; ajustarLarguraTabela(table); };
+  const soltar = ()=>{
+    window.removeEventListener('pointermove', mover);
+    window.removeEventListener('pointerup', soltar);
+    document.body.classList.remove('redimensionando');
+    salvarLarguraColuna(tableKey, colKey, parseFloat(col.style.width));
+  };
+  window.addEventListener('pointermove', mover);
+  window.addEventListener('pointerup', soltar);
+}
+function resetLarguraColuna(tableKey, colKey){
+  const cfg = tableRegistry[tableKey];
+  salvarLarguraColuna(tableKey, colKey, null);
+  const col = document.querySelector(`#tbl-${tableKey} col[data-key="${colKey}"]`);
+  if(col && cfg){ col.style.width = (cfg.larguras[colKey]||120) + 'px'; ajustarLarguraTabela(col.closest('table')); }
 }
 
 function refreshDependentSelects(cfg, row, tr, changedField){
@@ -993,6 +1156,7 @@ else if(el.tagName==='INPUT' && el.type==='number'){
     }
   });
   if(cfg.onRowChange) cfg.onRowChange(row); else scheduleSave();
+  if(cfg.totais || cfg.selecionavel) atualizarTotaisTabela(tableKey);
 }
 function addTableRow(tableKey){
   const cfg = tableRegistry[tableKey];
@@ -1491,7 +1655,7 @@ function bindStaticEvents(){
   const tbEstoque = document.getElementById('tbody-diesel-estoque');
   if(tbEstoque && tbEstoque.dataset.recalcBound!=='1'){
     tbEstoque.dataset.recalcBound = '1';
-    tbEstoque.addEventListener('change', ()=>render());
+    tbEstoque.addEventListener('change', e=>{ if(!e.target.classList.contains('sel-cb')) render(); });
   }
 
   bindExcelEnterNavigation();
@@ -1678,7 +1842,9 @@ function buildDieselControleCfg(){
     tableKey:'diesel-controle', title:'⛽ Controle Diesel',
     caption:'Lance cada abastecimento de máquina. As linhas abaixo podem ser corrigidas direto na tabela; clique no ▾ do cabeçalho para filtrar.',
     rows: diesel.lancamentos, exportName:'controle_diesel', exportFileName:`Controle_Diesel_${hojeISO()}.xlsx`,
-    computeDerived: ()=>({}), minWidth: 860, semLinhaEmBranco: true, cardsNoCelular: true,
+    computeDerived: ()=>({}), semLinhaEmBranco: true, cardsNoCelular: true,
+    larguras: {data:135, maquina:170, litros:110, servico:320, area:130, estacao:160},
+    totais: ['litros'], selecionavel: true,
     formTitle:'Novo lançamento', formButton:'Salvar lançamento',
     columns: [
       {key:'data', label:'Data', type:'date', formDefault: hojeISO},
@@ -1703,7 +1869,9 @@ function buildDieselEstoqueCfg(){
     caption:'Cada vez que encher (ou medir) o tanque, lance a data e a quantidade total que ficou no tanque. O "Usado" é a soma do Controle Diesel dessa data até o próximo lançamento, e o saldo é Qtd Total − Usado.',
     rows: diesel.estoque, exportName:'estoque_diesel', exportFileName:`Estoque_Diesel_${hojeISO()}.xlsx`,
     computeDerived: r=>calcEstoqueDiesel().porId[r.id] || {usado:0, saldo:0},
-    minWidth: 560, semLinhaEmBranco: true, cardsNoCelular: true,
+    semLinhaEmBranco: true, cardsNoCelular: true,
+    larguras: {data:140, entrada:130, usado:120, saldo:120},
+    totais: ['usado'], selecionavel: true,
     formTitle:'Novo lançamento do tanque', formButton:'Salvar',
     columns: [
       {key:'data', label:'Data', type:'date', formDefault: hojeISO},
@@ -1747,15 +1915,21 @@ function limparFiltroDiesel(){ dieselFiltro = {de:'', ate:'', estacao:''}; rende
 
 function tabelaResumoDiesel(titulo, rotulo, linhas){
   const total = linhas.reduce((s,r)=>s+r.litros,0), qtd = linhas.reduce((s,r)=>s+r.qtd,0);
+  const plural = n => `${n} ${n===1?'lançamento':'lançamentos'}`;
   return `
-    <div class="panel">
-      <p class="section-title">${titulo}</p>
+    <div class="resumo-card">
+      <h3>${titulo}</h3>
       ${linhas.length ? `
-      <div class="table-wrap"><table class="simples" style="min-width:0;">
-        <tr><th>${rotulo}</th><th>Lançamentos</th><th>Litros</th><th>% do total</th></tr>
-        ${linhas.map(r=>`<tr><td class="readonly">${esc(r.nome)}</td><td class="readonly num">${r.qtd}</td><td class="readonly num">${fmt(r.litros,1)} L</td><td class="readonly num">${fmtPct(r.pct)}</td></tr>`).join('')}
-        <tr style="font-weight:700; border-top:2px solid var(--green-dark);"><td class="readonly"><strong>TOTAL</strong></td><td class="readonly num"><strong>${qtd}</strong></td><td class="readonly num"><strong>${fmt(total,1)} L</strong></td><td class="readonly num"><strong>${linhas.length?'100,0%':'—'}</strong></td></tr>
-      </table></div>` : `<div class="empty">Nenhum lançamento no filtro escolhido.</div>`}
+      <table class="resumo">
+        <colgroup><col><col style="width:30%"><col style="width:24%"></colgroup>
+        <tr><th>${rotulo}</th><th>Litros</th><th>%</th></tr>
+        ${linhas.map(r=>`<tr>
+          <td>${esc(r.nome)}<span class="sub">${plural(r.qtd)}</span></td>
+          <td class="num">${fmt(r.litros,1)} L</td>
+          <td class="num">${fmtPct(r.pct)}<div class="barra"><i style="width:${(r.pct*100).toFixed(1)}%"></i></div></td>
+        </tr>`).join('')}
+        <tr class="total"><td>TOTAL<span class="sub">${plural(qtd)}</span></td><td class="num">${fmt(total,1)} L</td><td class="num">100,0%</td></tr>
+      </table>` : `<div class="empty" style="text-align:center; padding:18px;">Nenhum lançamento no filtro.</div>`}
     </div>`;
 }
 
@@ -1807,7 +1981,9 @@ function pageDieselEstoque(){
 function pageDieselResumo(){
   const lancs = dieselLancamentosFiltrados();
   const total = lancs.reduce((s,l)=>s+Number(l.litros||0),0);
+  const media = lancs.length ? total/lancs.length : 0;
   const estacoes = [...new Set([...diesel.estacoes, ...diesel.lancamentos.map(l=>l.estacao).filter(Boolean)])];
+  const temFiltro = dieselFiltro.de || dieselFiltro.ate || dieselFiltro.estacao;
   return `
     <div class="toolbar no-print" style="justify-content:flex-end;">
       <button class="secondary" onclick="window.print()">🖨️ Imprimir</button>
@@ -1816,20 +1992,23 @@ function pageDieselResumo(){
     <h2>📈 Resumo Diesel</h2>
     <div class="caption">${esc(descricaoFiltroDiesel())}</div>
     <div class="panel no-print">
-      <div class="filtros">
+      <div class="filtros-resumo">
         <div><label>De</label><input type="date" value="${esc(dieselFiltro.de)}" onchange="setFiltroDiesel('de', this.value)"></div>
         <div><label>Até</label><input type="date" value="${esc(dieselFiltro.ate)}" onchange="setFiltroDiesel('ate', this.value)"></div>
         <div><label>Estação</label><select onchange="setFiltroDiesel('estacao', this.value)"><option value="">Todas</option>${estacoes.map(e=>`<option value="${esc(e)}" ${e===dieselFiltro.estacao?'selected':''}>${esc(e)}</option>`).join('')}</select></div>
+        ${temFiltro ? `<div style="flex:0 0 auto;"><button class="ghost" style="padding:8px 12px;" onclick="limparFiltroDiesel()">Limpar filtros</button></div>` : ''}
       </div>
-      ${(dieselFiltro.de||dieselFiltro.ate||dieselFiltro.estacao) ? `<button class="ghost" style="margin-top:10px;" onclick="limparFiltroDiesel()">Limpar filtros</button>` : ''}
     </div>
-    <div class="metrics">
+    <div class="resumo-kpis">
       <div class="metric"><div class="val">${fmt(total,1)} L</div><div class="lbl">Litros usados</div></div>
       <div class="metric"><div class="val">${lancs.length}</div><div class="lbl">Lançamentos</div></div>
+      <div class="metric"><div class="val">${fmt(media,1)} L</div><div class="lbl">Média por lançamento</div></div>
     </div>
-    ${tabelaResumoDiesel('Litros por área', 'Área', agruparDiesel(lancs,'area'))}
-    ${tabelaResumoDiesel('Litros por máquina', 'Máquina', agruparDiesel(lancs,'maquina'))}
-    ${tabelaResumoDiesel('Litros por estação', 'Estação', agruparDiesel(lancs,'estacao'))}
+    <div class="resumo-grid">
+      ${tabelaResumoDiesel('🌾 Por Área', 'Área', agruparDiesel(lancs,'area'))}
+      ${tabelaResumoDiesel('🚜 Por Máquina', 'Máquina', agruparDiesel(lancs,'maquina'))}
+      ${tabelaResumoDiesel('📅 Por Estação', 'Estação', agruparDiesel(lancs,'estacao'))}
+    </div>
   `;
 }
 
